@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1A1A1A"/>
+      <stop offset="100%" stop-color="#0D2B1E"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="42" fill="url(#bg)"/>
+  <!-- خطوط زخرفية -->
+  <rect x="16" y="58" width="160" height="3" rx="2" fill="#6EE7B7" opacity=".15"/>
+  <rect x="16" y="131" width="160" height="3" rx="2" fill="#6EE7B7" opacity=".15"/>
+  <!-- حرف م -->
+  <text x="96" y="130" 
+    font-family="'Noto Naskh Arabic', 'Arabic Typesetting', Georgia, serif" 
+    font-size="108" 
+    font-weight="900" 
+    text-anchor="middle" 
+    fill="#6EE7B7">م</text>
+  <!-- نقطة صغيرة زينة -->
+  <circle cx="96" cy="155" r="4" fill="#6EE7B7" opacity=".5"/>
+</svg>
