@@ -307,10 +307,24 @@
         .qbtn.minus:active { background: var(--red-l); color: var(--red); }
         .qbtn.plus  { background: var(--green); color: #fff; }
         .qbtn.plus:active { background: #1B4332; }
-        .qitem-qty {
-            min-width: 28px; text-align: center;
-            font-size: .9rem; font-weight: 900; color: var(--ink);
+        input.qitem-qty {
+            width: 40px !important; min-width: 34px; max-width: 40px;
+            text-align: center;
+            font-family: 'Tajawal', sans-serif;
+            font-size: 16px !important; font-weight: 900; color: var(--ink);
+            background: transparent; border: 1.5px solid transparent;
+            border-radius: 6px; padding: 4px 1px !important;
+            flex-shrink: 0;
+            transition: border-color .15s, background .15s;
         }
+        input.qitem-qty:focus {
+            outline: none; border-color: var(--green);
+            background: var(--card); color: var(--ink);
+        }
+        /* اخفاء أسهم input number الافتراضية */
+        input.qitem-qty::-webkit-outer-spin-button,
+        input.qitem-qty::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input.qitem-qty { -moz-appearance: textfield; }
         .qitem-unit {
             font-family: 'Tajawal', sans-serif;
             font-size: .72rem; font-weight: 700;
@@ -619,7 +633,23 @@
             gap: 6px;
             flex-shrink: 0;
         }
-        .edit-qty { min-width: 28px; text-align: center; font-size: .9rem; font-weight: 900; color: var(--ink); }
+        input.edit-qty {
+            width: 40px !important; min-width: 34px; max-width: 40px;
+            text-align: center;
+            font-family: 'Tajawal', sans-serif;
+            font-size: 16px !important; font-weight: 900; color: var(--ink);
+            background: transparent; border: 1.5px solid transparent;
+            border-radius: 6px; padding: 4px 1px !important;
+            flex-shrink: 0;
+            transition: border-color .15s, background .15s;
+        }
+        input.edit-qty:focus {
+            outline: none; border-color: var(--green);
+            background: var(--card); color: var(--ink);
+        }
+        input.edit-qty::-webkit-outer-spin-button,
+        input.edit-qty::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input.edit-qty { -moz-appearance: textfield; }
         .edit-add-row {
             margin-top: 10px; padding-top: 10px;
             border-top: 1.5px dashed var(--border);
@@ -863,7 +893,11 @@
                 </div>
                 <div class="qitem-ctrl">
                     <button class="qbtn minus" onclick="qAdj(${i},-1)">−</button>
-                    <div class="qitem-qty">${q.qty}</div>
+                    <input type="number" inputmode="numeric" min="0" class="qitem-qty" value="${q.qty}"
+                        onchange="qSetQty(${i}, this.value)"
+                        onkeydown="if(event.key==='Enter') this.blur()"
+                        onfocus="this.select()"
+                        onclick="this.select()">
                     <button class="qbtn plus"  onclick="qAdj(${i},+1)">+</button>
                     <button class="qitem-unit${q.unit==='piece'?' piece':''}" onclick="qToggleUnit(${i})">${q.unit==='box'?'كرتونة':'قطعة'}</button>
                 </div>
@@ -875,6 +909,15 @@
         const p = products[i];
         if(!qState[p.name]) qState[p.name] = { qty: 0, unit: 'box' };
         qState[p.name].qty = Math.max(0, qState[p.name].qty + delta);
+        renderQuickList();
+    }
+
+    function qSetQty(i, val) {
+        const p = products[i];
+        if(!qState[p.name]) qState[p.name] = { qty: 0, unit: 'box' };
+        let n = parseInt(val, 10);
+        if(isNaN(n) || n < 0) n = 0;
+        qState[p.name].qty = n;
         renderQuickList();
     }
 
@@ -1164,10 +1207,12 @@
                     let fixed = false;
 
                     // الأصناف المشتركة بين الفاتورتين (عندهم كميات تقدر تلعب فيها)
-                    // رتب: الأغلى أول عشان قطعة واحدة تفرق أكتر
+                    // رتب: الأصناف الوفيرة (زي ممتاز لتر) أول، وبعدين الأكتر كمية،
+                    // عشان النقل يبقى من صنف عدده كبير مش صنف نادر
                     const shared = Object.keys(invs[hi].items)
                         .filter(name => {
                             if(s55 && name === s55.name) return false; // متلعبش في الظرف 55
+                            if(invMaxedOut(invs[lo], name)) return false; // lo وصلت للحد الأقصى (1 ق)
                             // لو سمن وعنده 2 قطعة بس → متلعبش (ممكن يخصم صنف)
                             const p = products.find(p => p.name === name);
                             if(!p) return false;
@@ -1176,9 +1221,9 @@
                             return qtyHi > 0;
                         })
                         .sort((x, y) => {
-                            const px = products.find(p => p.name === x)?.piecePrice || 0;
-                            const py = products.find(p => p.name === y)?.piecePrice || 0;
-                            return py - px;
+                            const rx = isRestrictedOne(x) ? 1 : 0, ry = isRestrictedOne(y) ? 1 : 0;
+                            if(rx !== ry) return rx - ry; // الغير مقيد (وفير) أولاً
+                            return (invs[hi].items[y] || 0) - (invs[hi].items[x] || 0); // الأكتر كمية أولاً
                         });
 
                     for(const name of shared) {
@@ -1223,9 +1268,9 @@
                                 return qtyHi > 0 && !invs[lo].items[name];
                             })
                             .sort((x, y) => {
-                                const px = products.find(p => p.name === x)?.piecePrice || 0;
-                                const py = products.find(p => p.name === y)?.piecePrice || 0;
-                                return py - px;
+                                const rx = isRestrictedOne(x) ? 1 : 0, ry = isRestrictedOne(y) ? 1 : 0;
+                                if(rx !== ry) return rx - ry; // الغير مقيد (وفير) أولاً
+                                return (invs[hi].items[y] || 0) - (invs[hi].items[x] || 0); // الأكتر كمية أولاً
                             });
 
                         for(const name of hiOnly) {
@@ -1290,7 +1335,11 @@
                 <div class="edit-row-name">${cleanName(it.name)}</div>
                 <div class="edit-row-ctrl">
                     <button class="qbtn minus" onclick="editAdj(${i},-1)">−</button>
-                    <div class="edit-qty">${qty}</div>
+                    <input type="number" inputmode="decimal" min="0" step="any" class="edit-qty" value="${qty}"
+                        onchange="editSetQty(${i}, this.value)"
+                        onkeydown="if(event.key==='Enter') this.blur()"
+                        onfocus="this.select()"
+                        onclick="this.select()">
                     <button class="qitem-unit${unit==='box'?'':' piece'}" onclick="editToggleUnit(${i})">${unitLabel}</button>
                     <button class="qbtn plus" onclick="editAdj(${i},+1)">+</button>
                     <button class="x-btn" style="position:static;width:26px;height:26px;flex-shrink:0;" onclick="editRemove(${i})">✕</button>
@@ -1328,6 +1377,17 @@
         if(!p) return;
         const step = (editItems[i].unit || 'piece') === 'box' ? p.pack : 1;
         editItems[i].qtyPieces = Math.max(0, editItems[i].qtyPieces + delta * step);
+        const l = db.logs.find(x => x.id === editLogId);
+        renderEditBody(l?.type);
+    }
+
+    function editSetQty(i, val) {
+        const p = products.find(p => p.name === editItems[i].name);
+        if(!p) return;
+        let n = parseFloat(val);
+        if(isNaN(n) || n < 0) n = 0;
+        const unit = editItems[i].unit || 'piece';
+        editItems[i].qtyPieces = unit === 'box' ? Math.round(n * p.pack) : Math.round(n);
         const l = db.logs.find(x => x.id === editLogId);
         renderEditBody(l?.type);
     }
@@ -1407,6 +1467,23 @@
         .querySelector('.popup-btn-confirm').onclick= () => _origConfirmResolve(true);
     function calculateItemWeight(n,q){ return n.includes('سمن') ? (q>=2?2:1) : 1; }
 
+    // ══════════════════════════════════════════════
+    // قيد إضافي: عباد + ذرة + الممتاز (عدا 700 مللي و1 لتر)
+    // الحد الأقصى لأي فاتورة من هذه الأصناف = 1 قطعة فقط
+    // (السمن مستثنى تماماً، وباقي الأصناف توزع عادي)
+    // ══════════════════════════════════════════════
+    const restrictedOneName = new Set(
+        products
+            .filter(p =>
+                p.name.includes('عباد') ||
+                p.name.includes('ذرة') ||
+                (p.name.includes('الممتاز') && !p.name.includes('700 مللي') && !p.name.includes('1 لتر'))
+            )
+            .map(p => p.name)
+    );
+    function isRestrictedOne(name) { return restrictedOneName.has(name); }
+    function invMaxedOut(inv, name) { return isRestrictedOne(name) && (inv.items[name] || 0) >= 1; }
+
     function generateInvoices() {
         const ipi   = parseInt(document.getElementById('invoiceItemCount').value) || 5;
         const ic    = parseInt(document.getElementById('invoiceCount').value);
@@ -1450,6 +1527,7 @@
             while(stock[p.name] > 0) {
                 // رتب الفواتير من الأقل قيمة لكل قطعة
                 const eligible = [...Array(ic).keys()]
+                    .filter(i => !invMaxedOut(invs[i], p.name))
                     .filter(i => invs[i].itemCount < ipi || invs[i].items[p.name] !== undefined)
                     .sort((a, b) => invs[a].total - invs[b].total);
                 if(eligible.length === 0) break;
@@ -1475,6 +1553,7 @@
                 if(stock[p.name] <= 0) continue;
                 for(const i of sorted) {
                     if(stock[p.name] <= 0) break;
+                    if(invMaxedOut(invs[i], p.name)) continue; // بلغت الحد الأقصى (1 ق) لهذا الصنف
                     invs[i].items[p.name] = (invs[i].items[p.name] || 0) + 1;
                     invs[i].total += p.piecePrice;
                     stock[p.name]--;
@@ -1505,11 +1584,19 @@
                     const lo = hi === a ? b : a;
 
                     // ابحث عن صنف في الفاتورة الأعلى ممكن ننقل منه قطعة
+                    // الأولوية للأصناف الوفيرة (زي ممتاز لتر) مش الأصناف المقيدة النادرة
                     let moved = false;
-                    for(const [name, qty] of Object.entries(invs[hi].items)) {
+                    const hiNamesSorted = Object.keys(invs[hi].items).sort((x, y) => {
+                        const rx = isRestrictedOne(x) ? 1 : 0, ry = isRestrictedOne(y) ? 1 : 0;
+                        if(rx !== ry) return rx - ry;
+                        return (invs[hi].items[y] || 0) - (invs[hi].items[x] || 0);
+                    });
+                    for(const name of hiNamesSorted) {
+                        const qty = invs[hi].items[name];
                         if(qty <= 0) continue;
                         const p = products.find(p => p.name === name);
                         if(!p) continue;
+                        if(invMaxedOut(invs[lo], name)) continue; // lo وصلت للحد الأقصى (1 ق) من هذا الصنف
 
                         // انقل قطعة واحدة من hi → lo
                         invs[hi].items[name]--;
@@ -1536,10 +1623,16 @@
                         invs[hi].total += p.piecePrice;
                     }
 
-                    // لو مش قادر ينقل، جرب يضيف من المخزون المتبقي
+                    // لو مش قادر ينقل، جرب يضيف من المخزون المتبقي (الأصناف الوفيرة أولاً)
                     if(!moved) {
-                        for(const p of non55) {
+                        const stockCandidates = non55.slice().sort((a, b) => {
+                            const ra = isRestrictedOne(a.name) ? 1 : 0, rb = isRestrictedOne(b.name) ? 1 : 0;
+                            if(ra !== rb) return ra - rb;
+                            return (stock[b.name] || 0) - (stock[a.name] || 0);
+                        });
+                        for(const p of stockCandidates) {
                             if(stock[p.name] <= 0) continue;
+                            if(invMaxedOut(invs[lo], p.name)) continue; // بلغت الحد الأقصى (1 ق)
                             invs[lo].items[p.name] = (invs[lo].items[p.name] || 0) + 1;
                             invs[lo].total += p.piecePrice;
                             stock[p.name]--;
@@ -1615,6 +1708,15 @@
                 if(!moved) break;
             }
         }
+
+        // ══════════════════════════════════════════════
+        // خطوة تسوية عدد الأصناف بتحرك قطع بين الفواتير من غير
+        // ما تراعي تشابه القيم، فبنعيد فحص التشابه تاني هنا
+        // عشان نضمن إن مفيش فاتورتين بفرق أقل من 50 ج حتى لو
+        // خطوة التسوية رجعتهم متشابهين
+        // ══════════════════════════════════════════════
+        fixSimilarTotals(invs, ic, non55, s55);
+
         const finalStock = {};
         products.forEach(p => { finalStock[p.name] = stock[p.name] / p.pack; });
 
