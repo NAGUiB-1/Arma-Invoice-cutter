@@ -370,6 +370,57 @@
         .mbox.rem   { background: var(--orange-bg); color: var(--orange-fg); }
         .mbox.rem.n { background: var(--red-l); color: var(--red); }
         .mbox.price { background: var(--green-l); color: var(--green); }
+
+        /* ── صف توريد منظم: اسم + كمية + سعر في سطر واحد ── */
+        .ti-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 9px;
+            background: var(--card);
+        }
+        .ti-row-name {
+            flex: 1;
+            min-width: 0;
+            font-size: .88rem;
+            font-weight: 800;
+            color: var(--ink);
+            line-height: 1.4;
+        }
+        .ti-row-qty {
+            background: var(--blue-l);
+            color: var(--blue);
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-weight: 800;
+            font-size: .8rem;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .ti-row-price {
+            background: var(--green-l);
+            color: var(--green);
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-weight: 800;
+            font-size: .8rem;
+            white-space: nowrap;
+            flex-shrink: 0;
+            min-width: 68px;
+            text-align: center;
+        }
+        .ti-row .x-btn-sm {
+            width: 25px; height: 25px; border-radius: 50%;
+            background: var(--x-bg); border: none;
+            color: var(--ink3); font-size: 11px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            transition: .2s;
+        }
+        .ti-row .x-btn-sm:hover { background: var(--red-l); color: var(--red); }
         .x-btn {
             position: absolute; top: 11px; left: 11px;
             width: 28px; height: 28px; border-radius: 50%;
@@ -520,17 +571,24 @@
         .done-chk  { width: 17px; height: 17px; cursor: pointer; accent-color: var(--green); }
         .lc-rows   { padding: 6px 13px; }
         .lc-row {
-            display: flex; justify-content: space-between; align-items: center;
+            display: flex; align-items: center; gap: 8px;
             padding: 7px 0;
             border-bottom: 1px solid var(--row-divider);
             font-size: .84rem;
         }
         .lc-row:last-child { border-bottom: none; }
-        .lc-row-name { color: var(--ink2); font-weight: 600; }
+        .lc-row-name { flex: 1; min-width: 0; color: var(--ink2); font-weight: 600; }
         .lc-row-qty  {
             background: var(--blue-l); color: var(--blue);
             padding: 2px 10px; border-radius: 99px;
             font-weight: 800; font-size: .78rem;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .lc-row-price {
+            background: var(--green-l); color: var(--green);
+            padding: 2px 10px; border-radius: 99px;
+            font-weight: 800; font-size: .78rem;
+            white-space: nowrap; flex-shrink: 0;
         }
         .lc-foot {
             display: flex; justify-content: space-between; align-items: center;
@@ -973,13 +1031,23 @@
         let total=0;
         document.getElementById('tempBody').innerHTML=tempItems.map((item,i)=>{
             total+=item.price;
+
+            if(currentMode==='in') {
+                return `<div class="ti-row">
+                    <button class="x-btn-sm" onclick="tempItems.splice(${i},1);renderTemp()">✕</button>
+                    <div class="ti-row-name">${cleanName(item.name)}</div>
+                    <span class="ti-row-qty">${item.displayQty}</span>
+                    <span class="ti-row-price">${item.price.toFixed(2)}</span>
+                </div>`;
+            }
+
             const rem=(db.stock[item.name]||0)-item.boxQty, isNeg=currentMode==='out'&&rem<0;
             return `<div class="ti${isNeg?' neg':''}">
                 <button class="x-btn" onclick="tempItems.splice(${i},1);renderTemp()">✕</button>
                 <div class="ti-name">${item.name}</div>
-                <div class="ti-boxes ${currentMode==='out'?'c3':'c2'}">
+                <div class="ti-boxes c3">
                     <div class="mbox qty"><span class="mbox-lbl">الكمية</span><span class="mbox-val">${item.displayQty}</span></div>
-                    ${currentMode==='out'?`<div class="mbox rem${isNeg?' n':''}"><span class="mbox-lbl">المتبقي</span><span class="mbox-val">${formatQty(rem,item.pack)}</span></div>`:''}
+                    <div class="mbox rem${isNeg?' n':''}"><span class="mbox-lbl">المتبقي</span><span class="mbox-val">${formatQty(rem,item.pack)}</span></div>
                     <div class="mbox price"><span class="mbox-lbl">السعر</span><span class="mbox-val">${item.price.toFixed(2)}</span></div>
                 </div></div>`;
         }).join('');
@@ -1048,20 +1116,54 @@
         }
     }
 
+    // عدد أصناف فاتورة محفوظة في السجل (نفس منطق: سمن بـ2 قطعة أو أكتر = صنفين)
+    function countLogItems(log) {
+        let n = 0;
+        log.items.forEach(it => {
+            const p = products.find(p => p.name === it.name);
+            const qtyPieces = Math.round(it.qty * (p?.pack || 1));
+            const isSamn = it.name.includes('سمن');
+            if(isSamn && qtyPieces >= 2) n += 2;
+            else n += 1;
+        });
+        return n;
+    }
+
     function filterLogs(type) {
         const f = db.logs.slice().reverse().filter(l => type === 'all' || l.type === type);
 
         // إجمالي كل الفواتير/التوريد المعروض
         const grandTotal = f.reduce((s, l) => s + parseFloat(l.total), 0);
 
-        document.getElementById('logContainer').innerHTML = f.length ? f.map((l, idx) => {
+        // ملخص علوي: عدد الفواتير + متوسط عدد الأصناف (فواتير المبيعات فقط)
+        const topSummaryHTML = (type === 'out' && f.length)
+            ? `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:2px 14px;margin-bottom:12px;">
+                <div class="popup-row"><span>عدد الفواتير</span><span>${f.length} فاتورة</span></div>
+                <div class="popup-row" style="border-bottom:none;"><span>متوسط عدد الأصناف بالفاتورة</span><span>${(f.reduce((s,l)=>s+countLogItems(l),0)/f.length).toFixed(1)} صنف</span></div>
+            </div>`
+            : '';
+
+        document.getElementById('logContainer').innerHTML = f.length ? topSummaryHTML + f.map((l, idx) => {
             const num = f.length - idx; // ترقيم تنازلي (الأحدث = الأعلى رقماً)
             const isSel = selectedIds.has(l.id);
-            const rows = l.items.map(it => `
-                <div class="lc-row">
+            const rows = l.items.map(it => {
+                const qtyLabel = it.label.match(/\(([^)]+)\)/)?.[1] || '';
+                if(l.type === 'in') {
+                    // نفس شكل صف التوريد في شاشة إضافة الفاتورة: اسم + كمية + سعر
+                    const p = products.find(p => p.name === it.name);
+                    const pieces = it.qtyPieces !== undefined ? it.qtyPieces : Math.round(it.qty * (p?.pack || 1));
+                    const price = pieces * (p?.piecePrice || 0);
+                    return `<div class="lc-row">
+                        <span class="lc-row-name">${cleanName(it.name)}</span>
+                        <span class="lc-row-qty">${qtyLabel}</span>
+                        <span class="lc-row-price">${price.toFixed(2)}</span>
+                    </div>`;
+                }
+                return `<div class="lc-row">
                     <span class="lc-row-name">${cleanName(it.name)}</span>
-                    <span class="lc-row-qty">${it.label.match(/\(([^)]+)\)/)?.[1]||''}</span>
-                </div>`).join('');
+                    <span class="lc-row-qty">${qtyLabel}</span>
+                </div>`;
+            }).join('');
             return `<div class="lc${l.isDone?' done':''}${isSel?' sel':''}" onclick="${selectModeActive?`toggleSelect(${l.id})`:''}">
                 <div class="lc-top">
                     <div class="lc-left">
@@ -1186,11 +1288,26 @@
     }
 
     // ══════════════════════════════════════════════
+    // عدد الأصناف الفعلي في الفاتورة (نفس منطق ملخص البوب أب:
+    // سمن بكمية 2 قطعة أو أكتر = صنفين، وأي صنف تاني = صنف واحد)
+    // ══════════════════════════════════════════════
+    function countItems(inv) {
+        let n = 0;
+        Object.entries(inv.items).forEach(([name, qty]) => {
+            if(qty <= 0) return;
+            if(name.includes('سمن') && qty >= 2) n += 2;
+            else n += 1;
+        });
+        return n;
+    }
+
+    // ══════════════════════════════════════════════
     // تشيك نهائي: تأكد إن مفيش فاتورتين قيمتهم
     // متقاربة (فرق أقل من 50 جنيه)
     // الحل: انقل قطع بين الفواتير لكسر التشابه
+    // ipi: أقل عدد أصناف مطلوب في أي فاتورة (لازم يفضل محترم حتى لو اتنقلت أصناف)
     // ══════════════════════════════════════════════
-    function fixSimilarTotals(invs, ic, non55, s55) {
+    function fixSimilarTotals(invs, ic, non55, s55, ipi) {
         const MIN_DIFF = 50;
 
         for(let pass = 0; pass < 200; pass++) {
@@ -1244,6 +1361,12 @@
                             }
 
                             if(Math.abs(newHi - newLo) >= MIN_DIFF && newHi > 0) {
+                                // منع نقص عدد أصناف hi عن الحد الأدنى (ipi) لو النقل هيشيل الصنف بالكامل
+                                const willFullyRemove = (invs[hi].items[name] - pcs) <= 0;
+                                if(willFullyRemove && ipi) {
+                                    const weight = (name.includes('سمن') && invs[hi].items[name] >= 2) ? 2 : 1;
+                                    if(countItems(invs[hi]) - weight < ipi) continue;
+                                }
                                 invs[hi].items[name] -= pcs;
                                 invs[hi].total = newHi;
                                 if(invs[hi].items[name] <= 0) delete invs[hi].items[name];
@@ -1283,6 +1406,11 @@
                                 const newHi = parseFloat((invs[hi].total - pcs * p.piecePrice).toFixed(2));
                                 const newLo = parseFloat((invs[lo].total + pcs * p.piecePrice).toFixed(2));
                                 if(Math.abs(newHi - newLo) >= MIN_DIFF && newHi > 0) {
+                                    const willFullyRemove = (invs[hi].items[name] - pcs) <= 0;
+                                    if(willFullyRemove && ipi) {
+                                        const weight = (name.includes('سمن') && invs[hi].items[name] >= 2) ? 2 : 1;
+                                        if(countItems(invs[hi]) - weight < ipi) continue;
+                                    }
                                     invs[hi].items[name] -= pcs;
                                     invs[hi].total = newHi;
                                     if(invs[hi].items[name] <= 0) delete invs[hi].items[name];
@@ -1468,7 +1596,7 @@
     function calculateItemWeight(n,q){ return n.includes('سمن') ? (q>=2?2:1) : 1; }
 
     // ══════════════════════════════════════════════
-    // قيد إضافي: عباد + ذرة + الممتاز (عدا 700 مللي و1 لتر)
+    // قيد إضافي: عباد + ذرة + الممتاز (عدا 1 لتر فقط)
     // الحد الأقصى لأي فاتورة من هذه الأصناف = 1 قطعة فقط
     // (السمن مستثنى تماماً، وباقي الأصناف توزع عادي)
     // ══════════════════════════════════════════════
@@ -1477,7 +1605,7 @@
             .filter(p =>
                 p.name.includes('عباد') ||
                 p.name.includes('ذرة') ||
-                (p.name.includes('الممتاز') && !p.name.includes('700 مللي') && !p.name.includes('1 لتر'))
+                (p.name.includes('الممتاز') && !p.name.includes('1 لتر'))
             )
             .map(p => p.name)
     );
@@ -1598,6 +1726,9 @@
                         if(!p) continue;
                         if(invMaxedOut(invs[lo], name)) continue; // lo وصلت للحد الأقصى (1 ق) من هذا الصنف
 
+                        // منع نقص عدد أصناف hi عن الحد الأدنى (ipi) لو النقل هيشيل الصنف بالكامل
+                        if(qty === 1 && ipi && countItems(invs[hi]) - 1 < ipi) continue;
+
                         // انقل قطعة واحدة من hi → lo
                         invs[hi].items[name]--;
                         invs[hi].total -= p.piecePrice;
@@ -1652,21 +1783,11 @@
 
         // ══════════════════════════════════════════════
         // ── تشيك نهائي: كسر التشابه في القيم ──
-        fixSimilarTotals(invs, ic, non55, s55);
+        fixSimilarTotals(invs, ic, non55, s55, ipi);
 
         // الخطوة 5: تسوية عدد الأصناف - double check
         // يكرر لحد ما محدش يتغير (stable)
         // ══════════════════════════════════════════════
-        function countItems(inv) {
-            let n = 0;
-            Object.entries(inv.items).forEach(([name, qty]) => {
-                if(qty <= 0) return;
-                if(name.includes('سمن') && qty >= 2) n += 2;
-                else n += 1;
-            });
-            return n;
-        }
-
         let globalChanged = true;
         while(globalChanged) {
             globalChanged = false;
@@ -1693,6 +1814,9 @@
                     if(!p) continue;
                     if(invs[lo].items[name]) continue; // الصنف موجود في lo → تخطي
 
+                    // منع نقص عدد أصناف hi عن الحد الأدنى (ipi) لو النقل هيشيل الصنف بالكامل
+                    if(qty === 1 && ipi && countItems(invs[hi]) - 1 < ipi) continue;
+
                     // انقل قطعة واحدة من hi → lo
                     invs[hi].items[name]--;
                     invs[hi].total -= p.piecePrice;
@@ -1715,7 +1839,7 @@
         // عشان نضمن إن مفيش فاتورتين بفرق أقل من 50 ج حتى لو
         // خطوة التسوية رجعتهم متشابهين
         // ══════════════════════════════════════════════
-        fixSimilarTotals(invs, ic, non55, s55);
+        fixSimilarTotals(invs, ic, non55, s55, ipi);
 
         const finalStock = {};
         products.forEach(p => { finalStock[p.name] = stock[p.name] / p.pack; });
@@ -1752,6 +1876,7 @@
 
         // بوب آب الملخص
         const groups = {};
+        let totalItemsAcrossInvoices = 0;
         logs.forEach(l => {
             let n = 0;
             l.items.forEach(it => {
@@ -1763,9 +1888,14 @@
                 else n += 1; // باقي الأصناف = صنف
             });
             groups[n] = (groups[n]||0) + 1;
+            totalItemsAcrossInvoices += n;
         });
+        const avgItemCount = logs.length ? (totalItemsAcrossInvoices / logs.length) : 0;
 
         let rowsHTML = `<div class="popup-row"><span>إجمالي الفواتير المُنشأة</span><span>${logs.length} فاتورة</span></div>`;
+        if(logs.length) {
+            rowsHTML += `<div class="popup-row"><span>متوسط عدد الأصناف</span><span>${avgItemCount.toFixed(1)} صنف</span></div>`;
+        }
         Object.entries(groups).sort((a,b)=>b[0]-a[0]).forEach(([n, count]) => {
             rowsHTML += `<div class="popup-row"><span>${count} فاتورة</span><span>${n} صنف</span></div>`;
         });
