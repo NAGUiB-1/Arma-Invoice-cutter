@@ -567,6 +567,12 @@
         .badge.in  { background: var(--green-l); color: var(--green); }
         .lc-date   { font-size: .68rem; color: var(--ink3); font-weight: 600; }
         .trash-btn { background: none; border: none; cursor: pointer; font-size: .95rem; opacity: .4; transition: .2s; }
+        .lock-btn {
+            background: none; border: none; cursor: pointer;
+            font-size: 1.05rem; opacity: .6; transition: .2s;
+            padding: 4px;
+        }
+        .lock-btn:hover { opacity: 1; }
         .trash-btn:hover { opacity: 1; }
         .done-chk  { width: 17px; height: 17px; cursor: pointer; accent-color: var(--green); }
         .lc-rows   { padding: 6px 13px; }
@@ -600,6 +606,16 @@
         .lc-foot-lbl { font-size: .75rem; color: var(--ink3); font-weight: 700; }
         .lc-foot-val { font-size: .98rem; font-weight: 900; color: var(--ink); }
         .tick { font-size: 1.15rem; cursor: pointer; }
+
+        /* ── صفحة كاملة (زي حاسبة السطور) ── */
+        .page-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: var(--bg);
+            z-index: 150;
+            overflow-y: auto;
+        }
+        .page-overlay.show { display: block; }
 
         /* ── POPUP ── */
         .popup-overlay {
@@ -745,6 +761,7 @@
 <div class="bar">
     <div class="bar-logo"><em>موزّع</em></div>
     <div class="bar-actions">
+        <button class="bar-btn bar-icon-btn" onclick="openCalcPage()" aria-label="حاسبة السطور المتبقية">🧮</button>
         <button class="bar-btn bar-icon-btn" id="themeBtn" onclick="toggleTheme()" aria-label="تبديل المظهر">🌙</button>
         <button class="bar-btn" onclick="startNewDay()">☀ يوم جديد</button>
     </div>
@@ -793,19 +810,28 @@
     <div class="card">
         <div class="card-head">
             <span class="card-title">⚡ تقسيم المخزون</span>
+            <button class="lock-btn" id="divLockBtn" onclick="toggleDivLock()" aria-label="قفل تقسيم المخزون">🔒</button>
         </div>
         <div class="card-body">
-            <div class="stack">
+            <div id="divLockedView" style="text-align:center;padding:14px 0;color:var(--ink3);font-size:.85rem;font-weight:700;">
+                🔒 القسم مقفول — دوس على القفل فوق لفتحه
+            </div>
+            <div id="divUnlockedView" class="stack hidden">
                 <input type="number" id="invoiceItemCount" placeholder="تلقائي" oninput="updateIpiPlaceholder()">
                 <input type="number" id="invoiceCount" placeholder="عدد الفواتير المطلوبة" oninput="updateIpiPlaceholder()">
-                <div style="font-size:.8rem;font-weight:800;color:var(--ink2);margin-bottom:-4px;">إضافة ٢ ق سمن ٥٥ جم لكل فاتورة</div>
-                <div class="pill-row pill-2" id="force55Row">
-                    <input type="radio" name="force55" id="force55Yes" value="yes" checked>
-                    <label for="force55Yes">إجباري في كل فاتورة</label>
-                    <input type="radio" name="force55" id="force55No" value="no">
-                    <label for="force55No">حسب المتاح بالمخزن</label>
-                </div>
                 <button class="save" onclick="generateInvoices()">إنشاء الفواتير</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PASSWORD POPUP -->
+    <div class="popup-overlay" id="passwordOverlay">
+        <div class="popup">
+            <div class="popup-title">🔒 كلمة المرور</div>
+            <input type="password" id="divPasswordInput" placeholder="ادخل كلمة المرور" style="margin-top:2px;" onkeydown="if(event.key==='Enter') submitDivPassword()">
+            <div class="popup-btns">
+                <button class="popup-btn-cancel" onclick="document.getElementById('passwordOverlay').classList.remove('show')">إلغاء</button>
+                <button class="popup-btn-confirm" style="background:var(--green);" onclick="submitDivPassword()">دخول</button>
             </div>
         </div>
     </div>
@@ -876,6 +902,44 @@
     </div>
 </div>
 
+<!-- حاسبة السطور المتبقية -->
+<div class="page-overlay" id="calcPage">
+    <div class="bar">
+        <button class="bar-btn bar-icon-btn" onclick="closeCalcPage()" aria-label="رجوع">←</button>
+        <div class="bar-logo">🧮 حاسبة السطور</div>
+        <div style="width:34px"></div>
+    </div>
+    <div class="wrap">
+        <div class="card">
+            <div class="card-head">
+                <span class="card-title">📊 حاسبة السطور المتبقية</span>
+            </div>
+            <div class="card-body">
+                <div class="stack">
+                    <div>
+                        <div style="font-size:.8rem;font-weight:800;color:var(--ink2);margin-bottom:6px;">متوسط عدد السطور الحالي</div>
+                        <input type="number" id="calcA" placeholder="مثال: 6">
+                    </div>
+                    <div>
+                        <div style="font-size:.8rem;font-weight:800;color:var(--ink2);margin-bottom:6px;">عدد الفواتير الحالية</div>
+                        <input type="number" id="calcN" placeholder="مثال: 10">
+                    </div>
+                    <div>
+                        <div style="font-size:.8rem;font-weight:800;color:var(--ink2);margin-bottom:6px;">عدد الفواتير المتبقية</div>
+                        <input type="number" id="calcR" placeholder="مثال: 5">
+                    </div>
+                    <div>
+                        <div style="font-size:.8rem;font-weight:800;color:var(--ink2);margin-bottom:6px;">المتوسط المطلوب الوصول إليه</div>
+                        <input type="number" id="calcT" placeholder="مثال: 7">
+                    </div>
+                    <button class="save" onclick="calcRemainingLines()">احسب</button>
+                    <div id="calcResult" class="banner hidden"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     const products = [
         { name:"سمن 55 جم * 36",          boxPrice:270.48,  piecePrice:7.51,    pack:36 },
@@ -885,8 +949,8 @@
         { name:"سمن 1.5 كجم * 4",          boxPrice:695.31,  piecePrice:173.83,  pack:4  },
         { name:"سمن 2 ك صافي * 4",         boxPrice:898.17,  piecePrice:224.54,  pack:4  },
         { name:"سمن 2.5 كجم * 4",          boxPrice:1089.76, piecePrice:272.44,  pack:4  },
-        { name:"سمن 4.25 كجم * 1",         boxPrice:445.5,  piecePrice:445.5,  pack:1  },
-        { name:"سمن 11 كجم * 1",           boxPrice:1130.20, piecePrice:1130.20, pack:1  },
+        { name:"سمن 4.25 كجم * 1",         boxPrice:477.5,  piecePrice:477.5,  pack:1  },
+        { name:"سمن 11 كجم * 1",           boxPrice:1212.25, piecePrice:1212.25, pack:1  },
         { name:"ذرة سبراي 200 ملي * 12",   boxPrice:302.82,  piecePrice:25.24,   pack:12 },
         { name:"زيت ذرة 700 مللي * 6",     boxPrice:545.86,  piecePrice:90.98,   pack:6  },
         { name:"ذرة 1 لتر * 6",            boxPrice:772.98,  piecePrice:128.83,  pack:6  },
@@ -1056,16 +1120,24 @@
 
     function saveToDB() {
         tempItems.forEach(i => db.stock[i.name] = (db.stock[i.name]||0) + (currentMode==='out' ? -i.boxQty : i.boxQty));
+
+        const itemsForLog = tempItems.map(i => ({
+            name: i.name,
+            qty: i.boxQty,                          // بالكرتونة (للتوافق)
+            qtyPieces: Math.round(i.boxQty * i.pack), // بالقطع (للحساب الدقيق)
+            label: `${cleanName(i.name)} (${i.displayQty})`
+        }));
+
+        // العروض الإضافية تتطبق على فواتير المبيعات (فاتورة −) فقط، مش على التوريد
+        const total = currentMode === 'out'
+            ? applyAdditionalOffers(itemsForLog).total
+            : tempItems.reduce((s,i) => s + i.price, 0);
+
         db.logs.push({
             id: Date.now(),
             date: new Date().toLocaleString('ar-EG'),
-            items: tempItems.map(i => ({
-                name: i.name,
-                qty: i.boxQty,                          // بالكرتونة (للتوافق)
-                qtyPieces: Math.round(i.boxQty * i.pack), // بالقطع (للحساب الدقيق)
-                label: `${cleanName(i.name)} (${i.displayQty})`
-            })),
-            total: tempItems.reduce((s,i) => s + i.price, 0).toFixed(2),
+            items: itemsForLog,
+            total: total.toFixed(2),
             type: currentMode, isDone: false
         });
         localStorage.setItem('naguib_v16', JSON.stringify(db));
@@ -1595,6 +1667,97 @@
         .querySelector('.popup-btn-confirm').onclick= () => _origConfirmResolve(true);
     function calculateItemWeight(n,q){ return n.includes('سمن') ? (q>=2?2:1) : 1; }
 
+    // ══════════════════════════════════════════════════════════
+    // 🎯 دالة "العروض الإضافية" — كل الأرقام والشروط هنا في مكان واحد
+    // عشان يبقى سهل تعديلها كل ما العروض تتغير.
+    // بتاخد تركيبة الفاتورة النهائية (بعد التوزيع أو بعد الإضافة اليدوية)
+    // وترجع الإجمالي الصح بعد كل الخصومات المستحقة.
+    //
+    // items المتوقعة: [{ name, qtyPieces }, ...] (قطع كل صنف في الفاتورة)
+    // ══════════════════════════════════════════════════════════
+    function applyAdditionalOffers(items) {
+
+        // ── إعدادات العرض 1: الصفيح (سمن 11ك + 4.25ك) ──
+        const SHEET_11K  = "سمن 11 كجم * 1";
+        const SHEET_425K = "سمن 4.25 كجم * 1";
+        // السعر بعد الخصم الأساسي على الصفيح (قبل خصم الـ3 قطع الإضافي)
+        const SHEET_DISCOUNTED_PRICE = {
+            [SHEET_11K]:  1139.60,
+            [SHEET_425K]: 448.85
+        };
+        const SHEET_BONUS_MIN_PIECES = 3;   // لو 3 قطع أو أكتر من الصفيح (مجتمعين أو منفصلين)
+        const SHEET_BONUS_PERCENT    = 0.75; // خصم إضافي فوق السعر المخصوم فوق
+
+        // ── إعدادات العرض 2: خصم 1% على أصناف سمن معينة ──
+        const SAMN_OFFER2_NAMES = [
+            "سمن 700 جم * 6", "سمن 1 ك صافي * 6", "سمن 1.5 كجم * 4",
+            "سمن 2 ك صافي * 4", "سمن 2.5 كجم * 4"
+        ]; // عدا: 55جم، 350جم، 11ك، 4.25ك (دول مستثنيين تماماً من هذا العرض)
+        const SAMN_15K = "سمن 1.5 كجم * 4";
+        const SAMN_OFFER2_MIN_BOXES = 3;    // 3 كراتين سمن (من القائمة فوق) على الأقل
+        const SAMN_OFFER2_PERCENT   = 1;
+
+        // ── إعدادات العرض 3: خصم 1% على كل الزيوت ──
+        const OIL_MIN_CORN_BOXES   = 1; // كرتونة ذرة (أي صنف) على الأقل
+        const OIL_MIN_SUN_BOXES    = 1; // كرتونة عباد (أي صنف) على الأقل
+        const OIL_MIN_MOMTAZ_BOXES = 2; // كرتونتين ممتاز (أي وزن) على الأقل
+        const OIL_OFFER3_PERCENT   = 1;
+
+        // ── أدوات مساعدة ──
+        const getPieces = name => items.find(it => it.name === name)?.qtyPieces || 0;
+        const pack = name => products.find(p => p.name === name)?.pack || 1;
+        const boxesOf = names => names.reduce((s, n) => s + (getPieces(n) / pack(n)), 0);
+
+        const cornNames   = products.filter(p => p.name.includes('ذرة')).map(p => p.name);
+        const sunNames    = products.filter(p => p.name.includes('عباد')).map(p => p.name);
+        const momtazNames = products.filter(p => p.name.includes('الممتاز')).map(p => p.name);
+
+        // ── تحقق الشروط ──
+        const sheetPieces      = getPieces(SHEET_11K) + getPieces(SHEET_425K);
+        const sheetBonusApplies = sheetPieces >= SHEET_BONUS_MIN_PIECES;
+
+        const samnBoxesTotal   = boxesOf(SAMN_OFFER2_NAMES);
+        const has15kBox        = (getPieces(SAMN_15K) / pack(SAMN_15K)) >= 1;
+        const samnOfferApplies = samnBoxesTotal >= SAMN_OFFER2_MIN_BOXES && has15kBox;
+
+        const oilOfferApplies  = boxesOf(cornNames) >= OIL_MIN_CORN_BOXES
+                               && boxesOf(sunNames) >= OIL_MIN_SUN_BOXES
+                               && boxesOf(momtazNames) >= OIL_MIN_MOMTAZ_BOXES;
+
+        // ── احسب السعر النهائي لكل صنف ──
+        let total = 0;
+        const breakdown = [];
+
+        items.forEach(it => {
+            const p = products.find(p => p.name === it.name);
+            if(!p || !it.qtyPieces) return;
+            let unitPrice = p.piecePrice;
+            let note = '';
+
+            if(it.name === SHEET_11K || it.name === SHEET_425K) {
+                unitPrice = SHEET_DISCOUNTED_PRICE[it.name];
+                if(sheetBonusApplies) {
+                    unitPrice = unitPrice * (1 - SHEET_BONUS_PERCENT / 100);
+                    note = 'عرض الصفيح + خصم 3 قطع';
+                } else {
+                    note = 'عرض الصفيح';
+                }
+            } else if(SAMN_OFFER2_NAMES.includes(it.name) && samnOfferApplies) {
+                unitPrice = unitPrice * (1 - SAMN_OFFER2_PERCENT / 100);
+                note = 'خصم سمن إضافي 1%';
+            } else if((cornNames.includes(it.name) || sunNames.includes(it.name) || momtazNames.includes(it.name)) && oilOfferApplies) {
+                unitPrice = unitPrice * (1 - OIL_OFFER3_PERCENT / 100);
+                note = 'خصم زيوت إضافي 1%';
+            }
+
+            const lineTotal = unitPrice * it.qtyPieces;
+            total += lineTotal;
+            breakdown.push({ name: it.name, unitPrice: parseFloat(unitPrice.toFixed(2)), lineTotal: parseFloat(lineTotal.toFixed(2)), note });
+        });
+
+        return { total: parseFloat(total.toFixed(2)), breakdown };
+    }
+
     // ══════════════════════════════════════════════
     // قيد إضافي: عباد + ذرة + الممتاز (عدا 1 لتر فقط)
     // الحد الأقصى لأي فاتورة من هذه الأصناف = 1 قطعة فقط
@@ -1850,7 +2013,7 @@
                 .filter(([,q]) => q > 0)
                 .map(([name, qty]) => {
                     const p = products.find(p => p.name === name);
-                    return { name, qty: qty / p.pack, label: `${cleanName(name)} (${qty} ق)` };
+                    return { name, qty: qty / p.pack, qtyPieces: qty, label: `${cleanName(name)} (${qty} ق)` };
                 });
 
             // لو الفاتورة أقل من 250 → ارجع أصنافها للمخزون ولا تحفظها
@@ -1861,10 +2024,13 @@
                 return;
             }
 
+            // طبّق العروض الإضافية على التركيبة النهائية للفاتورة
+            const offersResult = applyAdditionalOffers(items);
+
             logs.push({
                 id: Date.now() + i,
                 date: new Date().toLocaleString('ar-EG'),
-                items, total: inv.total.toFixed(2),
+                items, total: offersResult.total.toFixed(2),
                 type: 'out', isDone: false
             });
         });
@@ -1909,6 +2075,62 @@
     function closePopup(e) {
         if(e.target === document.getElementById('popupOverlay'))
             document.getElementById('popupOverlay').classList.remove('show');
+    }
+
+    // ── قفل قسم تقسيم المخزون ──
+    let divUnlocked = false;
+    function toggleDivLock() {
+        if(divUnlocked) {
+            divUnlocked = false;
+            document.getElementById('divLockedView').classList.remove('hidden');
+            document.getElementById('divUnlockedView').classList.add('hidden');
+            document.getElementById('divLockBtn').innerText = '🔒';
+            return;
+        }
+        document.getElementById('divPasswordInput').value = '';
+        document.getElementById('passwordOverlay').classList.add('show');
+        setTimeout(() => document.getElementById('divPasswordInput').focus(), 50);
+    }
+    function submitDivPassword() {
+        const val = document.getElementById('divPasswordInput').value;
+        document.getElementById('passwordOverlay').classList.remove('show');
+        if(val === 'arma') {
+            divUnlocked = true;
+            document.getElementById('divLockedView').classList.add('hidden');
+            document.getElementById('divUnlockedView').classList.remove('hidden');
+            document.getElementById('divLockBtn').innerText = '🔓';
+        } else {
+            showAlert('كلمة المرور غير صحيحة.', '⚠️ خطأ');
+        }
+    }
+
+    // ── حاسبة السطور المتبقية ──
+    function openCalcPage() {
+        document.getElementById('calcPage').classList.add('show');
+    }
+    function closeCalcPage() {
+        document.getElementById('calcPage').classList.remove('show');
+    }
+    function calcRemainingLines() {
+        const A = parseFloat(document.getElementById('calcA').value);
+        const N = parseFloat(document.getElementById('calcN').value);
+        const R = parseFloat(document.getElementById('calcR').value);
+        const T = parseFloat(document.getElementById('calcT').value);
+        const resEl = document.getElementById('calcResult');
+        resEl.classList.remove('hidden');
+
+        if(isNaN(A) || isNaN(N) || isNaN(R) || isNaN(T)) {
+            resEl.innerText = 'من فضلك أدخل الأرقام الأربعة كلها.';
+            return;
+        }
+        if(R <= 0) {
+            resEl.innerText = 'لا يوجد فواتير متبقية للحساب.';
+            return;
+        }
+
+        const totalNeeded = T * (N + R) - A * N;
+        const perInvoice = totalNeeded / R;
+        resEl.innerText = `العدد المطلوب لكل فاتورة: ${perInvoice.toFixed(2)} صنف`;
     }
 
     // ── Theme (AMOLED dark mode) ──
