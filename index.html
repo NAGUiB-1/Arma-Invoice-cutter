@@ -499,6 +499,7 @@
 
         /* ── FILTER TABS ── */
         .ftabs { display: flex; gap: 6px; }
+        .ftabs.hidden { display: none; }
         .ftabs input { display: none; }
         .ftabs label {
             font-family: 'Tajawal', sans-serif;
@@ -513,6 +514,10 @@
             transition: .2s;
         }
         .ftabs input:checked + label { background: var(--bar-bg); color: var(--bar-fg); border-color: var(--bar-bg); }
+        .sub-ftabs { justify-content: center; }
+        .sub-ftabs label { font-size: .78rem; padding: 5px 13px; }
+        #fdDone:checked + label   { background: var(--green);     border-color: var(--green);     color: #fff; }
+        #fdUndone:checked + label { background: var(--orange-fg); border-color: var(--orange-fg); color: #fff; }
 
         /* ── ACTION ROW ── */
         .arow { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
@@ -549,6 +554,8 @@
             background: var(--done-bg);
         }
         .lc.sel  { border-color: var(--blue); background: var(--sel-bg); }
+        .lc.similar { border-color: var(--red); border-width: 2px; }
+        .lc.similar .lc-foot-val { color: var(--red); }
         .lc-top {
             display: flex; justify-content: space-between; align-items: center;
             padding: 9px 13px;
@@ -847,7 +854,12 @@
             </div>
         </div>
         <div class="card-body">
-            <div class="arow">
+            <div class="ftabs sub-ftabs hidden" id="doneFtabs">
+                <input type="radio" name="fd" id="fdAll"    onclick="filterByDone('all')" checked><label for="fdAll">الكل</label>
+                <input type="radio" name="fd" id="fdDone"   onclick="filterByDone('done')"><label for="fdDone">مكتمل</label>
+                <input type="radio" name="fd" id="fdUndone" onclick="filterByDone('undone')"><label for="fdUndone">غير مكتمل</label>
+            </div>
+            <div class="arow" style="margin-top:10px;">
                 <button class="abtn red"  onclick="deleteAllLogs()">🗑 حذف الكل</button>
                 <button class="abtn blue" id="selectModeBtn" onclick="toggleSelectMode()">☑ تحديد</button>
                 <button class="abtn red"  id="deleteSelectedBtn" onclick="deleteSelected()" style="display:none">🗑 حذف</button>
@@ -949,8 +961,8 @@
         { name:"سمن 1.5 كجم * 4",          boxPrice:695.31,  piecePrice:173.83,  pack:4  },
         { name:"سمن 2 ك صافي * 4",         boxPrice:898.17,  piecePrice:224.54,  pack:4  },
         { name:"سمن 2.5 كجم * 4",          boxPrice:1089.76, piecePrice:272.44,  pack:4  },
-        { name:"سمن 4.25 كجم * 1",         boxPrice:477.5,  piecePrice:477.5,  pack:1  },
-        { name:"سمن 11 كجم * 1",           boxPrice:1212.25, piecePrice:1212.25, pack:1  },
+        { name:"سمن 4.25 كجم * 1",         boxPrice:467.95,  piecePrice:467.95,  pack:1  },
+        { name:"سمن 11 كجم * 1",           boxPrice:1188.01, piecePrice:1188.01, pack:1  },
         { name:"ذرة سبراي 200 ملي * 12",   boxPrice:302.82,  piecePrice:25.24,   pack:12 },
         { name:"زيت ذرة 700 مللي * 6",     boxPrice:545.86,  piecePrice:90.98,   pack:6  },
         { name:"ذرة 1 لتر * 6",            boxPrice:772.98,  piecePrice:128.83,  pack:6  },
@@ -1201,23 +1213,55 @@
         return n;
     }
 
+    let doneFilter = 'all';
+    function filterByDone(v) {
+        doneFilter = v;
+        filterLogs('out');
+    }
+
     function filterLogs(type) {
-        const f = db.logs.slice().reverse().filter(l => type === 'all' || l.type === type);
+        let f = db.logs.slice().reverse().filter(l => type === 'all' || l.type === type);
+
+        // فيلتر مكتمل/غير مكتمل (فواتير المبيعات فقط)
+        const doneTabsEl = document.getElementById('doneFtabs');
+        if(type === 'out') {
+            doneTabsEl.classList.remove('hidden');
+            if(doneFilter === 'done')   f = f.filter(l => l.isDone);
+            if(doneFilter === 'undone') f = f.filter(l => !l.isDone);
+        } else {
+            doneTabsEl.classList.add('hidden');
+        }
 
         // إجمالي كل الفواتير/التوريد المعروض
         const grandTotal = f.reduce((s, l) => s + parseFloat(l.total), 0);
+
+        // فواتير متشابهة القيمة (الفرق بينها أقل من 50 ج) → تتحدد بإطار أحمر
+        const SIMILAR_DIFF = 5;
+        const similarIds = new Set();
+        for(let a = 0; a < f.length; a++) {
+            for(let b = a + 1; b < f.length; b++) {
+                const diff = Math.abs(parseFloat(f[a].total) - parseFloat(f[b].total));
+                if(diff < SIMILAR_DIFF) { similarIds.add(f[a].id); similarIds.add(f[b].id); }
+            }
+        }
 
         // ملخص علوي: عدد الفواتير + متوسط عدد الأصناف (فواتير المبيعات فقط)
         const topSummaryHTML = (type === 'out' && f.length)
             ? `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:2px 14px;margin-bottom:12px;">
                 <div class="popup-row"><span>عدد الفواتير</span><span>${f.length} فاتورة</span></div>
-                <div class="popup-row" style="border-bottom:none;"><span>متوسط عدد الأصناف بالفاتورة</span><span>${(f.reduce((s,l)=>s+countLogItems(l),0)/f.length).toFixed(1)} صنف</span></div>
+                <div class="popup-row"><span>متوسط عدد الأصناف بالفاتورة</span><span>${(f.reduce((s,l)=>s+countLogItems(l),0)/f.length).toFixed(1)} صنف</span></div>
+                <div class="popup-row" style="border-bottom:none;"><span>إجمالي قيمة الفواتير</span><span>${grandTotal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} ج.م</span></div>
             </div>`
             : '';
+
+        const bottomTotalHTML = type === 'out' ? '' : `<div style="margin-top:10px;padding:12px;background:var(--bar-bg);color:var(--bar-fg);border-radius:9px;text-align:center;font-weight:900;font-size:.95rem;">
+            ${type==='in'?'إجمالي التوريد':'الإجمالي الكلي'}: ${grandTotal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} ج.م
+        </div>`;
 
         document.getElementById('logContainer').innerHTML = f.length ? topSummaryHTML + f.map((l, idx) => {
             const num = f.length - idx; // ترقيم تنازلي (الأحدث = الأعلى رقماً)
             const isSel = selectedIds.has(l.id);
+            const isSimilar = similarIds.has(l.id);
             const rows = l.items.map(it => {
                 const qtyLabel = it.label.match(/\(([^)]+)\)/)?.[1] || '';
                 if(l.type === 'in') {
@@ -1236,12 +1280,13 @@
                     <span class="lc-row-qty">${qtyLabel}</span>
                 </div>`;
             }).join('');
-            return `<div class="lc${l.isDone?' done':''}${isSel?' sel':''}" onclick="${selectModeActive?`toggleSelect(${l.id})`:''}">
+            return `<div class="lc${l.isDone?' done':''}${isSel?' sel':''}${isSimilar?' similar':''}" onclick="${selectModeActive?`toggleSelect(${l.id})`:''}">
                 <div class="lc-top">
                     <div class="lc-left">
                         ${selectModeActive ? `<span class="tick">${isSel?'✅':'⬜'}</span>`
                             : `<button class="trash-btn" onclick="event.stopPropagation();deleteLog(${l.id})">🗑</button>
-                               <button class="trash-btn" onclick="event.stopPropagation();openEdit(${l.id})" style="opacity:.5;font-size:.9rem;">✏️</button>`}
+                               <button class="trash-btn" onclick="event.stopPropagation();openEdit(${l.id})" style="opacity:.5;font-size:.9rem;">✏️</button>
+                               <button class="trash-btn" onclick="event.stopPropagation();shareInvoiceImage(${l.id})" style="opacity:.5;font-size:.95rem;">📤</button>`}
                         <span class="badge ${l.type}">${l.type==='out'?'فاتورة':'توريد'}</span>
                     </div>
                     <div class="lc-right">
@@ -1257,9 +1302,7 @@
                     <span class="lc-foot-val">${parseFloat(l.total).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} ج.م</span>
                 </div>
             </div>`;
-        }).join('') + `<div style="margin-top:10px;padding:12px;background:var(--bar-bg);color:var(--bar-fg);border-radius:9px;text-align:center;font-weight:900;font-size:.95rem;">
-            ${type==='in'?'إجمالي التوريد':type==='out'?'إجمالي الفواتير':'الإجمالي الكلي'}: ${grandTotal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} ج.م
-        </div>`
+        }).join('') + bottomTotalHTML
         : `<p class="empty">لا توجد عمليات</p>`;
     }
 
@@ -1280,10 +1323,23 @@
 
     async function deleteAllLogs() {
         const activeFilter = document.querySelector('input[name="f"]:checked')?.id.replace('f','').toLowerCase() || 'out';
-        const typeLabel = activeFilter === 'in' ? 'التوريد' : activeFilter === 'out' ? 'الفواتير' : 'كل العمليات';
+        const applyDoneFilter = activeFilter === 'out' && doneFilter !== 'all';
+
+        let typeLabel = activeFilter === 'in' ? 'التوريد' : activeFilter === 'out' ? 'الفواتير' : 'كل العمليات';
+        if(applyDoneFilter) typeLabel += doneFilter === 'done' ? ' المكتملة' : ' الغير مكتملة';
+
         const ok = await showConfirm(`سيتم حذف ${typeLabel} وإرجاع الكميات للمخزن.`, '🗑 حذف الكل');
         if(!ok) return;
-        db.logs = activeFilter === 'all' ? [] : db.logs.filter(l => l.type !== activeFilter);
+
+        db.logs = db.logs.filter(l => {
+            const typeMatches = activeFilter === 'all' || l.type === activeFilter;
+            if(!typeMatches) return true; // نوع مختلف → يفضل
+            if(applyDoneFilter) {
+                const doneMatches = doneFilter === 'done' ? l.isDone : !l.isDone;
+                return !doneMatches; // مطابق للنوع بس مش مطابق لحالة الإكمال المختارة → يفضل
+            }
+            return false; // مطابق ومفيش فيلتر إكمال مفعّل → يتحذف
+        });
         recalcStock();
         localStorage.setItem('naguib_v16', JSON.stringify(db)); refreshUI();
     }
@@ -1756,6 +1812,214 @@
         });
 
         return { total: parseFloat(total.toFixed(2)), breakdown };
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // 📤 مشاركة الفاتورة كصورة
+    // بترسم الفاتورة على canvas (بدون أي مكتبة خارجية) وتشاركها
+    // الأعمدة: الصنف | السعر قبل الخصم | الخصم | القيمة
+    // وتحتها: إجمالي قبل الخصم / تفاصيل الخصومات / إجمالي الخصومات / الإجمالي بعد الخصم
+    // ══════════════════════════════════════════════════════════
+    async function shareInvoiceImage(logId) {
+        const log = db.logs.find(x => x.id === logId);
+        if(!log) return;
+
+        // ── جهّز صفوف الفاتورة: قبل الخصم / الخصم / القيمة ──
+        let rows;
+        if(log.type === 'out') {
+            const itemsForOffers = log.items.map(it => {
+                const p = products.find(p => p.name === it.name);
+                const pieces = it.qtyPieces !== undefined ? it.qtyPieces : Math.round(it.qty * (p?.pack || 1));
+                return { name: it.name, qtyPieces: pieces };
+            });
+            const offersResult = applyAdditionalOffers(itemsForOffers);
+            rows = itemsForOffers.map(it => {
+                const p = products.find(p => p.name === it.name);
+                // "قبل الخصم" = سعر القائمة الخام (قبل خصم الـ2% العادي وقبل أي عرض إضافي)
+                const listPricePerPiece = (p?.piecePrice || 0) / 0.98;
+                const beforeTotal = it.qtyPieces * listPricePerPiece;
+                const afterItem = offersResult.breakdown.find(b => b.name === it.name);
+                const valueTotal = afterItem ? afterItem.lineTotal : (it.qtyPieces * (p?.piecePrice || 0));
+                return {
+                    name: `${cleanName(it.name)} (${it.qtyPieces} ق)`,
+                    before: beforeTotal,
+                    discount: beforeTotal - valueTotal,
+                    value: valueTotal,
+                    note: afterItem ? afterItem.note : ''
+                };
+            });
+        } else {
+            rows = log.items.map(it => {
+                const p = products.find(p => p.name === it.name);
+                const pieces = it.qtyPieces !== undefined ? it.qtyPieces : Math.round(it.qty * (p?.pack || 1));
+                const total = pieces * (p?.piecePrice || 0);
+                return { name: `${cleanName(it.name)} (${pieces} ق)`, before: total, discount: 0, value: total, note: '' };
+            });
+        }
+        const grandTotal = rows.reduce((s, r) => s + r.value, 0);
+
+        // ── ملخص الخصومات بالتفصيل (فواتير المبيعات فقط) ──
+        // كل صنف بيتفكك لخصم "عادي 2%" + خصم أي عرض إضافي (باسمه)، وبيتجمعوا مع بعض
+        let detailLines = [];
+        if(log.type === 'out') {
+            let totalBefore = 0, total2pct = 0;
+            const offerTotals = {};
+            rows.forEach(r => {
+                totalBefore += r.before;
+                const base2pct = r.before * 0.02;
+                total2pct += base2pct;
+                const extra = r.discount - base2pct;
+                if(extra > 0.005 && r.note) {
+                    offerTotals[r.note] = (offerTotals[r.note] || 0) + extra;
+                }
+            });
+            const totalDiscounts = totalBefore - grandTotal;
+
+            detailLines.push({ label: 'إجمالي قبل الخصم', value: totalBefore, kind: 'plain' });
+            detailLines.push({ label: 'خصم 2%', value: total2pct, kind: 'discount' });
+            Object.entries(offerTotals).forEach(([note, amt]) => {
+                detailLines.push({ label: `خصم ${note}`, value: amt, kind: 'discount' });
+            });
+            detailLines.push({ label: 'إجمالي الخصومات', value: totalDiscounts, kind: 'discount-bold' });
+        }
+
+        // ── تأكد إن الخط اتحمل قبل الرسم ──
+        try {
+            await document.fonts.load("700 24px Tajawal");
+            await document.fonts.load("700 14px Tajawal");
+            await document.fonts.load("600 14px Tajawal");
+            await document.fonts.load("500 14px Tajawal");
+            await document.fonts.ready;
+        } catch(e) {}
+
+        // ── أبعاد الصورة ──
+        const width = 720;
+        const headerH = 90, tableHeadH = 42, rowH = 46, detailLineH = 36, footerH = 64;
+        const height = headerH + tableHeadH + rows.length * rowH + detailLines.length * detailLineH + footerH;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.direction = 'rtl';
+
+        // أعمدة موزّعة على العرض بالكامل (من غير مسافة فاضية على الشمال)
+        const margin = 24;
+        const rightMargin = width - margin;
+        const nameColWidth = 280;
+        const colW = (width - 2 * margin - nameColWidth) / 3;
+        const colPriceX    = rightMargin - nameColWidth - colW / 2;
+        const colDiscountX = rightMargin - nameColWidth - colW - colW / 2;
+        const colValueX    = margin + colW / 2;
+
+        // خلفية
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+
+        // هيدر
+        ctx.fillStyle = '#1A1A1A';
+        ctx.fillRect(0, 0, width, headerH);
+        ctx.fillStyle = '#6EE7B7';
+        ctx.font = "700 24px Tajawal";
+        ctx.textAlign = 'right';
+        ctx.fillText('كريستال', rightMargin, 38);
+        ctx.fillStyle = '#fff';
+        ctx.font = "600 15px Tajawal";
+        ctx.fillText(log.type === 'out' ? 'فاتورة مبيعات' : 'فاتورة توريد', rightMargin, 64);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#aaa';
+        ctx.font = "500 13px Tajawal";
+        ctx.fillText(log.date, margin, 64);
+
+        // رأس الجدول
+        let y = headerH;
+        ctx.fillStyle = '#F0F0EB';
+        ctx.fillRect(0, y, width, tableHeadH);
+        ctx.fillStyle = '#555555';
+        ctx.font = "700 14px Tajawal";
+        ctx.textAlign = 'right';
+        ctx.fillText('الصنف', rightMargin, y + 27);
+        ctx.textAlign = 'center';
+        ctx.fillText('السعر قبل الخصم', colPriceX, y + 27);
+        ctx.fillText('الخصم', colDiscountX, y + 27);
+        ctx.fillText('القيمة', colValueX, y + 27);
+
+        // صفوف الأصناف
+        rows.forEach((r, i) => {
+            const ry = headerH + tableHeadH + i * rowH;
+            if(i % 2 === 1) { ctx.fillStyle = '#FAFAF8'; ctx.fillRect(0, ry, width, rowH); }
+
+            const midY = ry + rowH / 2 + 5;
+            ctx.fillStyle = '#1A1A1A';
+            ctx.font = "600 14px Tajawal";
+            ctx.textAlign = 'right';
+            ctx.fillText(r.name, rightMargin, midY);
+
+            ctx.fillStyle = '#555555';
+            ctx.font = "500 14px Tajawal";
+            ctx.textAlign = 'center';
+            ctx.fillText(r.before.toFixed(2), colPriceX, midY);
+
+            ctx.fillStyle = r.discount > 0.004 ? '#C0392B' : '#999999';
+            ctx.fillText(r.discount > 0.004 ? '-' + r.discount.toFixed(2) : '0.00', colDiscountX, midY);
+
+            ctx.fillStyle = '#2D6A4F';
+            ctx.font = "700 14px Tajawal";
+            ctx.fillText(r.value.toFixed(2), colValueX, midY);
+
+            ctx.strokeStyle = '#E8E8E3';
+            ctx.beginPath(); ctx.moveTo(0, ry + rowH); ctx.lineTo(width, ry + rowH); ctx.stroke();
+        });
+
+        // ── تفاصيل الخصومات (فواتير المبيعات فقط) ──
+        let detailY = headerH + tableHeadH + rows.length * rowH;
+        detailLines.forEach((d, i) => {
+            ctx.fillStyle = i % 2 === 1 ? '#FAFAF8' : '#FFFFFF';
+            ctx.fillRect(0, detailY, width, detailLineH);
+
+            const midY = detailY + detailLineH / 2 + 5;
+            const isBold = d.kind === 'discount-bold';
+            ctx.font = (isBold ? "700 " : "600 ") + "14px Tajawal";
+            ctx.fillStyle = d.kind === 'plain' ? '#1A1A1A' : (isBold ? '#C0392B' : '#C0392B');
+            ctx.textAlign = 'right';
+            ctx.fillText(d.label, rightMargin, midY);
+
+            ctx.textAlign = 'left';
+            const sign = d.kind === 'plain' ? '' : '-';
+            ctx.fillText(`${sign}${d.value.toFixed(2)}`, margin, midY);
+
+            ctx.strokeStyle = '#E8E8E3';
+            ctx.beginPath(); ctx.moveTo(0, detailY + detailLineH); ctx.lineTo(width, detailY + detailLineH); ctx.stroke();
+
+            detailY += detailLineH;
+        });
+
+        // الإجمالي بعد الخصم
+        const footerY = detailY;
+        ctx.fillStyle = '#1A1A1A';
+        ctx.fillRect(0, footerY, width, footerH);
+        ctx.fillStyle = '#fff';
+        ctx.font = "700 19px Tajawal";
+        ctx.textAlign = 'center';
+        ctx.fillText(
+            `${log.type === 'out' ? 'الإجمالي بعد الخصم' : 'الإجمالي'}: ${grandTotal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} ج.م`,
+            width / 2, footerY + footerH / 2 + 7
+        );
+
+        // ── حوّل لصورة وشاركها (أو نزّلها لو المشاركة مش مدعومة) ──
+        canvas.toBlob(async (blob) => {
+            if(!blob) return;
+            const file = new File([blob], `فاتورة-${logId}.png`, { type: 'image/png' });
+            if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({ files: [file], title: 'فاتورة', text: 'فاتورة من كريستال' });
+                    return;
+                } catch(e) { /* المستخدم لغى المشاركة أو فشلت، هنزّلها بدلاً منها */ }
+            }
+            const link = document.createElement('a');
+            link.download = `فاتورة-${logId}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }, 'image/png');
     }
 
     // ══════════════════════════════════════════════
