@@ -952,6 +952,13 @@
     </div>
 </div>
 
+<!--
+  للطباعة على Zebra ZQ220: نزّل ملف "BrowserPrint-3.0.216.min.js" من
+  Zebra Developer Portal وحطّه في نفس فولدر index.html، وسيبه بنفس الاسم.
+  السطر ده مش هيبوّظ التطبيق لو الملف مش موجود، بس زرار الطباعة مش هيشتغل غيره.
+-->
+<script src="BrowserPrint-3.0.216.min.js" onerror="console.warn('BrowserPrint SDK غير موجود — زرار الطباعة لن يعمل حتى تضيفه.')"></script>
+
 <script>
     const products = [
         { name:"سمن 55 جم * 36",          boxPrice:270.48,  piecePrice:7.51,    pack:36 },
@@ -1286,7 +1293,8 @@
                         ${selectModeActive ? `<span class="tick">${isSel?'✅':'⬜'}</span>`
                             : `<button class="trash-btn" onclick="event.stopPropagation();deleteLog(${l.id})">🗑</button>
                                <button class="trash-btn" onclick="event.stopPropagation();openEdit(${l.id})" style="opacity:.5;font-size:.9rem;">✏️</button>
-                               <button class="trash-btn" onclick="event.stopPropagation();shareInvoiceImage(${l.id})" style="opacity:.5;font-size:.95rem;">📤</button>`}
+                               <button class="trash-btn" onclick="event.stopPropagation();shareInvoiceImage(${l.id})" style="opacity:.5;font-size:.95rem;">📤</button>
+                               <button class="trash-btn" onclick="event.stopPropagation();printInvoiceZebra(${l.id})" style="opacity:.5;font-size:.95rem;">🖨️</button>`}
                         <span class="badge ${l.type}">${l.type==='out'?'فاتورة':'توريد'}</span>
                     </div>
                     <div class="lc-right">
@@ -1800,10 +1808,10 @@
                 }
             } else if(SAMN_OFFER2_NAMES.includes(it.name) && samnOfferApplies) {
                 unitPrice = unitPrice * (1 - SAMN_OFFER2_PERCENT / 100);
-                note = 'خصم سمن إضافي 1%';
+                note = 'سمن إضافي 1%';
             } else if((cornNames.includes(it.name) || sunNames.includes(it.name) || momtazNames.includes(it.name)) && oilOfferApplies) {
                 unitPrice = unitPrice * (1 - OIL_OFFER3_PERCENT / 100);
-                note = 'خصم زيوت إضافي 1%';
+                note = 'زيوت إضافي 1%';
             }
 
             const lineTotal = unitPrice * it.qtyPieces;
@@ -1815,53 +1823,47 @@
     }
 
     // ══════════════════════════════════════════════════════════
-    // 📤 مشاركة الفاتورة كصورة
-    // بترسم الفاتورة على canvas (بدون أي مكتبة خارجية) وتشاركها
-    // الأعمدة: الصنف | السعر قبل الخصم | الخصم | القيمة
-    // وتحتها: إجمالي قبل الخصم / تفاصيل الخصومات / إجمالي الخصومات / الإجمالي بعد الخصم
+    // 🖼️ بناء صورة الفاتورة (canvas) — مستخدمة في المشاركة والطباعة
+    // فواتير المبيعات: الصنف | الكمية | السعر قبل الخصم | الخصم | القيمة + تفصيل العروض تحت
+    // فواتير التوريد: الصنف | الكمية | سعر القائمة | الخصم | الصافي (من غير عروض إضافية)
     // ══════════════════════════════════════════════════════════
-    async function shareInvoiceImage(logId) {
-        const log = db.logs.find(x => x.id === logId);
-        if(!log) return;
+    async function buildInvoiceCanvas(log, targetWidth) {
+        let columns, rows, detailLines = [], grandTotal;
 
-        // ── جهّز صفوف الفاتورة: قبل الخصم / الخصم / القيمة ──
-        let rows;
         if(log.type === 'out') {
+            columns = [
+                { key: 'name',        label: 'الصنف',            nameCol: true },
+                { key: 'qty',         label: 'الكمية',           isText: true },
+                { key: 'listDisplay', label: 'السعر قبل الخصم' },
+                { key: 'discount',    label: 'الخصم',            isDiscount: true },
+                { key: 'value',       label: 'القيمة',           isNet: true }
+            ];
+
             const itemsForOffers = log.items.map(it => {
                 const p = products.find(p => p.name === it.name);
                 const pieces = it.qtyPieces !== undefined ? it.qtyPieces : Math.round(it.qty * (p?.pack || 1));
-                return { name: it.name, qtyPieces: pieces };
+                const qtyLabel = it.label.match(/\(([^)]+)\)/)?.[1] || `${pieces} ق`;
+                return { name: it.name, qtyPieces: pieces, qtyLabel };
             });
             const offersResult = applyAdditionalOffers(itemsForOffers);
             rows = itemsForOffers.map(it => {
                 const p = products.find(p => p.name === it.name);
-                // "قبل الخصم" = سعر القائمة الخام (قبل خصم الـ2% العادي وقبل أي عرض إضافي)
+                // إجمالي "قبل الخصم" (للحسابات والملخص) = سعر القائمة الخام × الكمية
                 const listPricePerPiece = (p?.piecePrice || 0) / 0.98;
-                const beforeTotal = it.qtyPieces * listPricePerPiece;
+                const before = it.qtyPieces * listPricePerPiece;
+                // "السعر قبل الخصم" المعروض بالعمود = سعر الكرتونة الواحدة من القائمة (بدون ضرب في الكمية)
+                const listDisplay = (p?.boxPrice || 0) / 0.98;
                 const afterItem = offersResult.breakdown.find(b => b.name === it.name);
-                const valueTotal = afterItem ? afterItem.lineTotal : (it.qtyPieces * (p?.piecePrice || 0));
+                const value = afterItem ? afterItem.lineTotal : (it.qtyPieces * (p?.piecePrice || 0));
                 return {
-                    name: `${cleanName(it.name)} (${it.qtyPieces} ق)`,
-                    before: beforeTotal,
-                    discount: beforeTotal - valueTotal,
-                    value: valueTotal,
+                    name: cleanName(it.name), qty: it.qtyLabel,
+                    before, listDisplay, discount: before - value, value,
                     note: afterItem ? afterItem.note : ''
                 };
             });
-        } else {
-            rows = log.items.map(it => {
-                const p = products.find(p => p.name === it.name);
-                const pieces = it.qtyPieces !== undefined ? it.qtyPieces : Math.round(it.qty * (p?.pack || 1));
-                const total = pieces * (p?.piecePrice || 0);
-                return { name: `${cleanName(it.name)} (${pieces} ق)`, before: total, discount: 0, value: total, note: '' };
-            });
-        }
-        const grandTotal = rows.reduce((s, r) => s + r.value, 0);
+            grandTotal = rows.reduce((s, r) => s + r.value, 0);
 
-        // ── ملخص الخصومات بالتفصيل (فواتير المبيعات فقط) ──
-        // كل صنف بيتفكك لخصم "عادي 2%" + خصم أي عرض إضافي (باسمه)، وبيتجمعوا مع بعض
-        let detailLines = [];
-        if(log.type === 'out') {
+            // ── تفاصيل الخصومات بالتفصيل (2% + كل عرض إضافي اتفعّل) ──
             let totalBefore = 0, total2pct = 0;
             const offerTotals = {};
             rows.forEach(r => {
@@ -1869,9 +1871,7 @@
                 const base2pct = r.before * 0.02;
                 total2pct += base2pct;
                 const extra = r.discount - base2pct;
-                if(extra > 0.005 && r.note) {
-                    offerTotals[r.note] = (offerTotals[r.note] || 0) + extra;
-                }
+                if(extra > 0.005 && r.note) offerTotals[r.note] = (offerTotals[r.note] || 0) + extra;
             });
             const totalDiscounts = totalBefore - grandTotal;
 
@@ -1881,6 +1881,32 @@
                 detailLines.push({ label: `خصم ${note}`, value: amt, kind: 'discount' });
             });
             detailLines.push({ label: 'إجمالي الخصومات', value: totalDiscounts, kind: 'discount-bold' });
+
+        } else {
+            // ── توريد: من غير أي عروض إضافية، خصم الـ2% بس ──
+            columns = [
+                { key: 'name',        label: 'الصنف',         nameCol: true },
+                { key: 'qty',         label: 'الكمية',        isText: true },
+                { key: 'listDisplay', label: 'سعر القائمة' },
+                { key: 'discount',    label: 'الخصم',         isDiscount: true },
+                { key: 'net',         label: 'الصافي',        isNet: true }
+            ];
+
+            rows = log.items.map(it => {
+                const p = products.find(p => p.name === it.name);
+                const pieces = it.qtyPieces !== undefined ? it.qtyPieces : Math.round(it.qty * (p?.pack || 1));
+                const net = pieces * (p?.piecePrice || 0);
+                const list = net / 0.98; // إجمالي سعر القائمة (للحسابات والملخص)
+                const listDisplay = (p?.boxPrice || 0) / 0.98; // سعر الكرتونة الواحدة من القائمة (بدون ضرب في الكمية)
+                const qtyLabel = it.label.match(/\(([^)]+)\)/)?.[1] || `${pieces} ق`;
+                return { name: cleanName(it.name), qty: qtyLabel, list, listDisplay, discount: list - net, net };
+            });
+            grandTotal = rows.reduce((s, r) => s + r.net, 0);
+
+            const totalList = rows.reduce((s, r) => s + r.list, 0);
+            const totalDiscounts = totalList - grandTotal;
+            detailLines.push({ label: 'إجمالي قبل الخصم', value: totalList, kind: 'plain' });
+            detailLines.push({ label: 'الخصومات', value: totalDiscounts, kind: 'discount' });
         }
 
         // ── تأكد إن الخط اتحمل قبل الرسم ──
@@ -1893,7 +1919,7 @@
         } catch(e) {}
 
         // ── أبعاد الصورة ──
-        const width = 720;
+        const width = targetWidth;
         const headerH = 90, tableHeadH = 42, rowH = 46, detailLineH = 36, footerH = 64;
         const height = headerH + tableHeadH + rows.length * rowH + detailLines.length * detailLineH + footerH;
 
@@ -1902,14 +1928,14 @@
         const ctx = canvas.getContext('2d');
         ctx.direction = 'rtl';
 
-        // أعمدة موزّعة على العرض بالكامل (من غير مسافة فاضية على الشمال)
+        // ── أعمدة موزّعة على العرض بالكامل (من غير مسافة فاضية على الشمال) ──
         const margin = 24;
         const rightMargin = width - margin;
-        const nameColWidth = 280;
-        const colW = (width - 2 * margin - nameColWidth) / 3;
-        const colPriceX    = rightMargin - nameColWidth - colW / 2;
-        const colDiscountX = rightMargin - nameColWidth - colW - colW / 2;
-        const colValueX    = margin + colW / 2;
+        const nameColWidth = columns.length > 4 ? 220 : 280; // مساحة أقل للاسم لو الأعمدة أكتر (توريد)
+        const numericCols = columns.slice(1);
+        const colW = (width - 2 * margin - nameColWidth) / numericCols.length;
+        const colX = {};
+        numericCols.forEach((col, idx) => { colX[col.key] = rightMargin - nameColWidth - colW * idx - colW / 2; });
 
         // خلفية
         ctx.fillStyle = '#FFFFFF';
@@ -1937,11 +1963,9 @@
         ctx.fillStyle = '#555555';
         ctx.font = "700 14px Tajawal";
         ctx.textAlign = 'right';
-        ctx.fillText('الصنف', rightMargin, y + 27);
+        ctx.fillText(columns[0].label, rightMargin, y + 27);
         ctx.textAlign = 'center';
-        ctx.fillText('السعر قبل الخصم', colPriceX, y + 27);
-        ctx.fillText('الخصم', colDiscountX, y + 27);
-        ctx.fillText('القيمة', colValueX, y + 27);
+        numericCols.forEach(col => ctx.fillText(col.label, colX[col.key], y + 27));
 
         // صفوف الأصناف
         rows.forEach((r, i) => {
@@ -1952,25 +1976,35 @@
             ctx.fillStyle = '#1A1A1A';
             ctx.font = "600 14px Tajawal";
             ctx.textAlign = 'right';
-            ctx.fillText(r.name, rightMargin, midY);
+            ctx.fillText(r[columns[0].key], rightMargin, midY);
 
-            ctx.fillStyle = '#555555';
-            ctx.font = "500 14px Tajawal";
-            ctx.textAlign = 'center';
-            ctx.fillText(r.before.toFixed(2), colPriceX, midY);
-
-            ctx.fillStyle = r.discount > 0.004 ? '#C0392B' : '#999999';
-            ctx.fillText(r.discount > 0.004 ? '-' + r.discount.toFixed(2) : '0.00', colDiscountX, midY);
-
-            ctx.fillStyle = '#2D6A4F';
-            ctx.font = "700 14px Tajawal";
-            ctx.fillText(r.value.toFixed(2), colValueX, midY);
+            numericCols.forEach(col => {
+                ctx.textAlign = 'center';
+                if(col.isText) {
+                    ctx.fillStyle = '#1A1A1A';
+                    ctx.font = "600 14px Tajawal";
+                    ctx.fillText(r[col.key], colX[col.key], midY);
+                } else if(col.isDiscount) {
+                    const v = r[col.key];
+                    ctx.fillStyle = v > 0.004 ? '#C0392B' : '#999999';
+                    ctx.font = "500 14px Tajawal";
+                    ctx.fillText(v > 0.004 ? '-' + v.toFixed(2) : '0.00', colX[col.key], midY);
+                } else if(col.isNet) {
+                    ctx.fillStyle = '#2D6A4F';
+                    ctx.font = "700 14px Tajawal";
+                    ctx.fillText(r[col.key].toFixed(2), colX[col.key], midY);
+                } else {
+                    ctx.fillStyle = '#555555';
+                    ctx.font = "500 14px Tajawal";
+                    ctx.fillText(r[col.key].toFixed(2), colX[col.key], midY);
+                }
+            });
 
             ctx.strokeStyle = '#E8E8E3';
             ctx.beginPath(); ctx.moveTo(0, ry + rowH); ctx.lineTo(width, ry + rowH); ctx.stroke();
         });
 
-        // ── تفاصيل الخصومات (فواتير المبيعات فقط) ──
+        // ── تفاصيل الخصومات ──
         let detailY = headerH + tableHeadH + rows.length * rowH;
         detailLines.forEach((d, i) => {
             ctx.fillStyle = i % 2 === 1 ? '#FAFAF8' : '#FFFFFF';
@@ -1979,7 +2013,7 @@
             const midY = detailY + detailLineH / 2 + 5;
             const isBold = d.kind === 'discount-bold';
             ctx.font = (isBold ? "700 " : "600 ") + "14px Tajawal";
-            ctx.fillStyle = d.kind === 'plain' ? '#1A1A1A' : (isBold ? '#C0392B' : '#C0392B');
+            ctx.fillStyle = d.kind === 'plain' ? '#1A1A1A' : '#C0392B';
             ctx.textAlign = 'right';
             ctx.fillText(d.label, rightMargin, midY);
 
@@ -2001,11 +2035,21 @@
         ctx.font = "700 19px Tajawal";
         ctx.textAlign = 'center';
         ctx.fillText(
-            `${log.type === 'out' ? 'الإجمالي بعد الخصم' : 'الإجمالي'}: ${grandTotal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} ج.م`,
+            `الإجمالي بعد الخصم: ${grandTotal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} ج.م`,
             width / 2, footerY + footerH / 2 + 7
         );
 
-        // ── حوّل لصورة وشاركها (أو نزّلها لو المشاركة مش مدعومة) ──
+        return canvas;
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // 📤 مشاركة الفاتورة كصورة (أو تنزيلها لو المشاركة مش مدعومة)
+    // ══════════════════════════════════════════════════════════
+    async function shareInvoiceImage(logId) {
+        const log = db.logs.find(x => x.id === logId);
+        if(!log) return;
+        const canvas = await buildInvoiceCanvas(log, 720);
+
         canvas.toBlob(async (blob) => {
             if(!blob) return;
             const file = new File([blob], `فاتورة-${logId}.png`, { type: 'image/png' });
@@ -2020,6 +2064,67 @@
             link.href = canvas.toDataURL('image/png');
             link.click();
         }, 'image/png');
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // 🖨️ طباعة الفاتورة على طابعة Zebra ZQ220 (عن طريق Bluetooth)
+    // ZQ220 بتفهم CPCL بس، وخطوطها المدمجة مش بتدعم العربي،
+    // فبنبعت الفاتورة كصورة (bitmap) عن طريق أمر EG في CPCL،
+    // وده محتاج تطبيق "Zebra Browser Print" مثبّت وشغال على الموبايل
+    // وموصّل بالطابعة عن طريق بلوتوث (Bluetooth Classic مش BLE).
+    // ══════════════════════════════════════════════════════════
+    const ZEBRA_PRINTER_WIDTH_DOTS = 600; // ورق 3 بوصة تقريباً عند 203dpi
+
+    function canvasToCPCL(canvas) {
+        const w = canvas.width, h = canvas.height;
+        const ctx = canvas.getContext('2d');
+        const imgData = ctx.getImageData(0, 0, w, h).data;
+        const wBytes = Math.ceil(w / 8);
+        let hex = '';
+        for(let y = 0; y < h; y++) {
+            for(let bx = 0; bx < wBytes; bx++) {
+                let byte = 0;
+                for(let bit = 0; bit < 8; bit++) {
+                    const x = bx * 8 + bit;
+                    let on = 0;
+                    if(x < w) {
+                        const idx = (y * w + x) * 4;
+                        const lum = imgData[idx] * 0.299 + imgData[idx+1] * 0.587 + imgData[idx+2] * 0.114;
+                        const alpha = imgData[idx+3];
+                        on = (alpha > 10 && lum < 150) ? 1 : 0; // بكسل غامق = أسود = 1
+                    }
+                    byte = (byte << 1) | on;
+                }
+                hex += byte.toString(16).padStart(2, '0');
+            }
+        }
+        return `! 0 200 200 ${h + 30} 1\r\nEG ${wBytes},${h},0,0,${hex}\r\nFORM\r\nPRINT\r\n`;
+    }
+
+    async function printInvoiceZebra(logId) {
+        const log = db.logs.find(x => x.id === logId);
+        if(!log) return;
+
+        if(typeof BrowserPrint === 'undefined') {
+            showAlert('لازم تثبّت تطبيق "Zebra Browser Print" على الموبايل وتوصّله بالطابعة عن طريق البلوتوث الأول.', '🖨️ الطابعة مش جاهزة');
+            return;
+        }
+
+        const canvas = await buildInvoiceCanvas(log, ZEBRA_PRINTER_WIDTH_DOTS);
+        const cpcl = canvasToCPCL(canvas);
+
+        BrowserPrint.getDefaultDevice('printer', function(device) {
+            if(!device) {
+                showAlert('مفيش طابعة متوصّلة دلوقتي. افتح تطبيق Zebra Browser Print واختار الطابعة منه.', '🖨️ خطأ');
+                return;
+            }
+            device.send(cpcl,
+                () => showAlert('اتبعتت الفاتورة للطابعة.', '✅ تمام'),
+                (err) => showAlert('حصل خطأ أثناء الطباعة: ' + err, '⚠️ خطأ')
+            );
+        }, function(err) {
+            showAlert('مقدرش أوصل لخدمة Zebra Browser Print. تأكد إن التطبيق مثبّت وشغال على الموبايل.', '⚠️ خطأ');
+        });
     }
 
     // ══════════════════════════════════════════════
