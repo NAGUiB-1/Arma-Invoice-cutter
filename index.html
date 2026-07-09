@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+    <title>مُوزّع</title>
+    <meta name="application-name" content="مُوزّع">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="مُوزّع">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1A1A1A">
+    <link rel="manifest" href="manifest.json">
+
+    <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="install-banner" id="installBanner" onclick="installApp()">
+    📲 أضف مُوزّع لسطح المكتب
+</div>
+
+<div class="bar">
+    <div class="bar-logo"><em>موزّع</em></div>
+    <div class="bar-actions">
+        <button class="bar-btn bar-icon-btn" onclick="openCalcPage()" aria-label="حاسبة السطور المتبقية">🧮</button>
+        <button class="bar-btn bar-icon-btn" id="themeBtn" onclick="toggleTheme()" aria-label="تبديل المظهر">🌙</button>
+        <button class="bar-btn" onclick="startNewDay()">☀ يوم جديد</button>
+    </div>
+</div>
+
+<div class="wrap">
+
+    <!-- المخزن -->
+    <div class="card">
+        <div class="card-head">
+            <span class="card-title">📦 المخزن</span>
+        </div>
+        <div class="card-body">
+            <div class="stock-grid" id="stockDisplay">
+                <p class="empty" style="grid-column:1/-1">المخزن فارغ</p>
+            </div>
+            <div id="stockTotal" style="margin-top:10px;text-align:center;font-size:.85rem;font-weight:800;color:var(--ink2);display:none"></div>
+        </div>
+    </div>
+
+    <!-- الفاتورة -->
+    <div class="card">
+        <div class="card-head">
+            <span class="card-title" id="modeTitle">🧾 فاتورة مبيعات</span>
+        </div>
+        <div class="card-body">
+            <div class="tabs">
+                <button id="outBtn" class="tab out active" onclick="changeMode('out')">فاتورة (−)</button>
+                <button id="inBtn"  class="tab in"         onclick="changeMode('in')">توريد (+)</button>
+            </div>
+            <div class="stack">
+                <div class="qlist" id="quickList"></div>
+                <button class="qadd-btn" onclick="addSelectedToTemp()">✔ إضافة للفاتورة</button>
+                <div class="hint" id="qtyHint"></div>
+            </div>
+
+            <div id="tempWrapper" class="hidden" style="margin-top:14px;">
+                <div id="tempBody"></div>
+                <div id="totalDisplay" class="banner">إجمالي الفاتورة: 0 ج.م</div>
+                <button class="save" onclick="saveToDB()">حفظ العملية</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- تقسيم -->
+    <div class="card">
+        <div class="card-head">
+            <span class="card-title">⚡ تقسيم المخزون</span>
+            <button class="lock-btn" id="divLockBtn" onclick="toggleDivLock()" aria-label="قفل تقسيم المخزون">🔒</button>
+        </div>
+        <div class="card-body">
+            <div id="divLockedView" style="text-align:center;padding:14px 0;color:var(--ink3);font-size:.85rem;font-weight:700;">
+                🔒 القسم مقفول — دوس على القفل فوق لفتحه
+            </div>
+            <div id="divUnlockedView" class="stack hidden">
+                <input type="number" id="invoiceItemCount" placeholder="تلقائي" oninput="updateIpiPlaceholder()">
+                <input type="number" id="invoiceCount" placeholder="عدد الفواتير المطلوبة" oninput="updateIpiPlaceholder()">
+                <button class="save" onclick="generateInvoices()">إنشاء الفواتير</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PASSWORD POPUP -->
+    <div class="popup-overlay" id="passwordOverlay">
+        <div class="popup">
+            <div class="popup-title">🔒 كلمة المرور</div>
+            <input type="password" id="divPasswordInput" placeholder="ادخل كلمة المرور" style="margin-top:2px;" onkeydown="if(event.key==='Enter') submitDivPassword()">
+            <div class="popup-btns">
+                <button class="popup-btn-cancel" onclick="document.getElementById('passwordOverlay').classList.remove('show')">إلغاء</button>
+                <button class="popup-btn-confirm" style="background:var(--green);" onclick="submitDivPassword()">دخول</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- السجل -->
+    <div class="card">
+        <div class="card-head">
+            <span class="card-title">🗂 السجل</span>
+            <div class="ftabs">
+                <input type="radio" name="f" id="fAll" onclick="filterLogs('all')"><label for="fAll">الكل</label>
+                <input type="radio" name="f" id="fOut" onclick="filterLogs('out')" checked><label for="fOut">فواتير</label>
+                <input type="radio" name="f" id="fIn"  onclick="filterLogs('in')"><label for="fIn">توريد</label>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="ftabs sub-ftabs hidden" id="doneFtabs">
+                <input type="radio" name="fd" id="fdAll"    onclick="filterByDone('all')" checked><label for="fdAll">الكل</label>
+                <input type="radio" name="fd" id="fdDone"   onclick="filterByDone('done')"><label for="fdDone">مكتمل</label>
+                <input type="radio" name="fd" id="fdUndone" onclick="filterByDone('undone')"><label for="fdUndone">غير مكتمل</label>
+            </div>
+            <div class="arow" style="margin-top:10px;">
+                <button class="abtn red"  onclick="deleteAllLogs()">🗑 حذف الكل</button>
+                <button class="abtn blue" id="selectModeBtn" onclick="toggleSelectMode()">☑ تحديد</button>
+                <button class="abtn red"  id="deleteSelectedBtn" onclick="deleteSelected()" style="display:none">🗑 حذف</button>
+                <button class="abtn grn"  id="mergeSelectedBtn"  onclick="mergeSelected()"  style="display:none">🔀 دمج</button>
+            </div>
+            <div id="logContainer" style="margin-top:12px;"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- INVOICE POPUP -->
+<div class="popup-overlay" id="popupOverlay" onclick="closePopup(event)">
+    <div class="popup">
+        <div class="popup-title">✅ تم إنشاء الفواتير</div>
+        <div id="popupRows"></div>
+        <div id="popupNote" class="popup-note" style="display:none"></div>
+        <button class="popup-close" onclick="document.getElementById('popupOverlay').classList.remove('show')">حسناً</button>
+    </div>
+</div>
+
+<!-- EDIT POPUP -->
+<div class="popup-overlay" id="editOverlay" onclick="closeEditPopup(event)">
+    <div class="popup" style="max-height:85vh;display:flex;flex-direction:column;">
+        <div class="popup-title" id="editTitle">✏️ تعديل الفاتورة</div>
+        <div id="editBody" style="overflow-y:auto;flex:1;margin-bottom:12px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <button class="popup-btn-cancel" onclick="closeEditPopup()">إلغاء</button>
+            <button class="popup-btn-ok" style="margin:0;" onclick="saveEdit()">💾 حفظ</button>
+        </div>
+    </div>
+</div>
+
+<!-- CONFIRM POPUP -->
+<div class="popup-overlay" id="confirmOverlay">
+    <div class="popup">
+        <div class="popup-title" id="confirmTitle"></div>
+        <div id="confirmMsg" style="font-size:.88rem;color:var(--ink2);line-height:1.6;margin-top:4px;"></div>
+        <div class="popup-btns">
+            <button class="popup-btn-cancel" onclick="confirmResolve(false)">إلغاء</button>
+            <button class="popup-btn-confirm" id="confirmOkBtn" onclick="confirmResolve(true)">تأكيد</button>
+        </div>
+    </div>
+</div>
+
+<!-- ALERT POPUP -->
+<div class="popup-overlay" id="alertOverlay">
+    <div class="popup">
+        <div class="popup-title" id="alertTitle"></div>
+        <div id="alertMsg" style="font-size:.88rem;color:var(--ink2);line-height:1.6;margin-top:4px;"></div>
+        <button class="popup-btn-ok" onclick="document.getElementById('alertOverlay').classList.remove('show')">حسناً</button>
+    </div>
+</div>
+
+<!-- حاسبة السطور المتبقية -->
+<div class="page-overlay" id="calcPage">
+    <div class="bar">
+        <button class="bar-btn bar-icon-btn" onclick="closeCalcPage()" aria-label="رجوع">←</button>
+        <div class="bar-logo">🧮 حاسبة السطور</div>
+        <div style="width:34px"></div>
+    </div>
+    <div class="wrap">
+        <div class="card">
+            <div class="card-head">
+                <span class="card-title">📊 حاسبة السطور المتبقية</span>
+            </div>
+            <div class="card-body">
+                <div class="stack">
+                    <div>
+                        <div style="font-size:.8rem;font-weight:800;color:var(--ink2);margin-bottom:6px;">متوسط عدد السطور الحالي</div>
+                        <input type="number" id="calcA" placeholder="مثال: 6">
+                    </div>
+                    <div>
+                        <div style="font-size:.8rem;font-weight:800;color:var(--ink2);margin-bottom:6px;">عدد الفواتير الحالية</div>
+                        <input type="number" id="calcN" placeholder="مثال: 10">
+                    </div>
+                    <div>
+                        <div style="font-size:.8rem;font-weight:800;color:var(--ink2);margin-bottom:6px;">عدد الفواتير المتبقية</div>
+                        <input type="number" id="calcR" placeholder="مثال: 5">
+                    </div>
+                    <div>
+                        <div style="font-size:.8rem;font-weight:800;color:var(--ink2);margin-bottom:6px;">المتوسط المطلوب الوصول إليه</div>
+                        <input type="number" id="calcT" placeholder="مثال: 7">
+                    </div>
+                    <button class="save" onclick="calcRemainingLines()">احسب</button>
+                    <div id="calcResult" class="banner hidden"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
