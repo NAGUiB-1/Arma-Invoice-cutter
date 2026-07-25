@@ -870,8 +870,8 @@ function applyAdditionalOffers(items) {
   const SHEET_425K = "سمن 4.25 كجم * 1";
   // السعر بعد الخصم الأساسي على الصفيح (قبل خصم الـ3 قطع الإضافي)
   const SHEET_DISCOUNTED_PRICE = {
-    [SHEET_11K]: 1139.60,
-    [SHEET_425K]: 448.85
+    [SHEET_11K]: 1103,
+    [SHEET_425K]: 435
   };
   const SHEET_BONUS_MIN_PIECES = 3; // لو 3 قطع أو أكتر من الصفيح (مجتمعين أو منفصلين)
   const SHEET_BONUS_PERCENT = 0.75; // خصم إضافي فوق السعر المخصوم فوق
