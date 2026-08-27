@@ -515,8 +515,16 @@ function countItems(inv) {
 // الحل: انقل قطع بين الفواتير لكسر التشابه
 // ipi: أقل عدد أصناف مطلوب في أي فاتورة (لازم يفضل محترم حتى لو اتنقلت أصناف)
 // ══════════════════════════════════════════════
-function fixSimilarTotals(invs, ic, non55, s55, ipi) {
-  const MIN_DIFF = 25;
+function fixSimilarTotals(invs, ic, non55, s55, ipi, diffMin) {
+  const MIN_DIFF = diffMin || 25;
+  // تحقق شامل: القيمة الجديدة مقبولة بس لو محدش قريب منها من باقي الفواتير
+  const safeAgainstAll = (idx, newTotal, skipIdx) => {
+    for (let k = 0; k < ic; k++) {
+      if (k === idx || k === skipIdx) continue;
+      if (Math.abs(invs[k].total - newTotal) < MIN_DIFF) return false;
+    }
+    return true;
+  };
   
   for (let pass = 0; pass < 200; pass++) {
     let changed = false;
@@ -569,7 +577,8 @@ function fixSimilarTotals(invs, ic, non55, s55, ipi) {
               if (remPcs > 0 && remPcs < 2) continue;
             }
             
-            if (Math.abs(newHi - newLo) >= MIN_DIFF && newHi > 0) {
+            if (Math.abs(newHi - newLo) >= MIN_DIFF && newHi > 0 &&
+                safeAgainstAll(hi, newHi, lo) && safeAgainstAll(lo, newLo, hi)) {
               // منع نقص عدد أصناف hi عن الحد الأدنى (ipi) لو النقل هيشيل الصنف بالكامل
               const willFullyRemove = (invs[hi].items[name] - pcs) <= 0;
               if (willFullyRemove && ipi) {
@@ -615,7 +624,8 @@ function fixSimilarTotals(invs, ic, non55, s55, ipi) {
             for (let pcs = 1; pcs <= maxMove; pcs++) {
               const newHi = parseFloat((invs[hi].total - pcs * p.piecePrice).toFixed(2));
               const newLo = parseFloat((invs[lo].total + pcs * p.piecePrice).toFixed(2));
-              if (Math.abs(newHi - newLo) >= MIN_DIFF && newHi > 0) {
+              if (Math.abs(newHi - newLo) >= MIN_DIFF && newHi > 0 &&
+                  safeAgainstAll(hi, newHi, lo) && safeAgainstAll(lo, newLo, hi)) {
                 const willFullyRemove = (invs[hi].items[name] - pcs) <= 0;
                 if (willFullyRemove && ipi) {
                   const weight = (name.includes('سمن') && invs[hi].items[name] >= 2) ? 2 : 1;
@@ -667,9 +677,11 @@ function fixSimilarTotals(invs, ic, non55, s55, ipi) {
                 if (countItems(invs[k]) - weight < ipi) continue;
               }
               const newLo = parseFloat((invs[lo].total + p.piecePrice).toFixed(2));
-              if (Math.abs(invs[hi].total - newLo) >= MIN_DIFF) {
+              const newK = parseFloat((invs[k].total - p.piecePrice).toFixed(2));
+              if (Math.abs(invs[hi].total - newLo) >= MIN_DIFF && newK > 0 &&
+                  safeAgainstAll(lo, newLo, k) && safeAgainstAll(k, newK, lo)) {
                 invs[k].items[name]--;
-                invs[k].total = parseFloat((invs[k].total - p.piecePrice).toFixed(2));
+                invs[k].total = newK;
                 if (invs[k].items[name] <= 0) delete invs[k].items[name];
                 invs[lo].items[name] = (invs[lo].items[name] || 0) + 1;
                 invs[lo].total = newLo;
@@ -1284,9 +1296,18 @@ function invMaxedOut(inv, name) { return isRestrictedOne(name) && (inv.items[nam
 // بيحترم كل القيود الحالية (restrictedOne، حد أدنى السمن 2 قطعة،
 // الحد الأدنى لعدد الأصناف، فرق القيم المطلوب)
 // ══════════════════════════════════════════════════════════
-function eliminateDuplicateInvoices(invs, ic, non55, s55, ipi, stock) {
-  const MIN_DIFF = 25;
+function eliminateDuplicateInvoices(invs, ic, non55, s55, ipi, stock, diffMin) {
+  const MIN_DIFF = diffMin || 25;
   const canTouch = name => !s55 || name !== s55.name;
+  // تحقق شامل: التعديل مقبول بس لو مفرقش أي فاتورتين في القائمة كلها عن MIN_DIFF
+  const safeAgainstAll = (idx, newTotal, skipIdx) => {
+    for (let k = 0; k < ic; k++) {
+      if (k === idx || k === skipIdx) continue;
+      const other = k === skipIdx ? null : invs[k].total;
+      if (Math.abs(other - newTotal) < MIN_DIFF) return false;
+    }
+    return true;
+  };
   const samnFloorOk = (inv, name) => !name.includes('سمن') || inv.items[name] > 2;
   const weightOf = (inv, name) => (name.includes('سمن') && inv.items[name] >= 2) ? 2 : 1;
   
@@ -1340,6 +1361,8 @@ function eliminateDuplicateInvoices(invs, ic, non55, s55, ipi, stock) {
             const newTotalB = parseFloat((invs[b].total - pB.piecePrice + pA.piecePrice).toFixed(2));
             if (newTotalA <= 0 || newTotalB <= 0) continue;
             if (Math.abs(newTotalA - newTotalB) < MIN_DIFF) continue;
+            // تأكد إن القيم الجديدة مش هتقرّب من أي فاتورة تالتة تاني
+            if (!safeAgainstAll(a, newTotalA, b) || !safeAgainstAll(b, newTotalB, a)) continue;
             
             invs[a].items[nameA]--;
             if (invs[a].items[nameA] <= 0) delete invs[a].items[nameA];
@@ -1370,11 +1393,15 @@ function eliminateDuplicateInvoices(invs, ic, non55, s55, ipi, stock) {
             const willFullyRemove = invs[k].items[name] === 1;
             if (willFullyRemove && ipi && (countItems(invs[k]) - weightOf(invs[k], name) < ipi)) continue;
             const newB = parseFloat((invs[b].total + p.piecePrice).toFixed(2));
+            const newK = parseFloat((invs[k].total - p.piecePrice).toFixed(2));
+            if (newK <= 0) continue;
             if (Math.abs(invs[a].total - newB) < MIN_DIFF) continue;
+            // تأكد إن newB (b الجديدة) و newK (k الجديدة) مش هيقربوا من أي فاتورة تالتة
+            if (!safeAgainstAll(b, newB, k) || !safeAgainstAll(k, newK, b)) continue;
             
             invs[k].items[name]--;
             if (invs[k].items[name] <= 0) delete invs[k].items[name];
-            invs[k].total = parseFloat((invs[k].total - p.piecePrice).toFixed(2));
+            invs[k].total = newK;
             invs[b].items[name] = (invs[b].items[name] || 0) + 1;
             invs[b].total = newB;
             moved = true;
@@ -1396,6 +1423,7 @@ function eliminateDuplicateInvoices(invs, ic, non55, s55, ipi, stock) {
               if (invMaxedOut(invs[b], p.name)) continue;
               const newB = parseFloat((invs[b].total - pOut.piecePrice + p.piecePrice).toFixed(2));
               if (newB <= 0 || Math.abs(invs[a].total - newB) < MIN_DIFF) continue;
+              if (!safeAgainstAll(b, newB, a)) continue;
               
               invs[b].items[nameOut]--;
               if (invs[b].items[nameOut] <= 0) delete invs[b].items[nameOut];
@@ -1410,6 +1438,226 @@ function eliminateDuplicateInvoices(invs, ic, non55, s55, ipi, stock) {
             if (done) break;
           }
         }
+        
+        // ── المحاولة 4: لو الفاتورتين متطابقتين تماماً في كل
+        // الأصناف (حتى المقيدة)، مفيش أي swap أو استبدال ممكن من
+        // جوه الفاتورتين نفسهم. الحل الوحيد: نقل صنف كامل (حتى لو
+        // مقيد) من فاتورة تالتة عندها صنف مش موجود عند b، أو من
+        // المخزون العام حتى لو الصنف ده مقيد أصلاً (لأنه مش موجود
+        // عند b فمش هيكسر قيد الحد الأقصى قطعة واحدة) ──
+        if (!fixedAny || true) {
+          const stillDup = buildInvoiceSignature(invs[a]) === buildInvoiceSignature(invs[b]);
+          if (stillDup) {
+            let done4 = false;
+            // أولاً: جرب المخزون العام حتى لو الصنف مقيد (طالما مش موجود عند b)
+            if (stock && !done4) {
+              for (const p of non55) {
+                if (stock[p.name] <= 0) continue;
+                if (invs[b].items[p.name]) continue; // لازم يكون صنف جديد مميز
+                const newB = parseFloat((invs[b].total + p.piecePrice).toFixed(2));
+                if (Math.abs(invs[a].total - newB) < MIN_DIFF) continue;
+                if (!safeAgainstAll(b, newB, a)) continue;
+                
+                invs[b].items[p.name] = (invs[b].items[p.name] || 0) + 1;
+                invs[b].total = newB;
+                stock[p.name]--;
+                done4 = true;
+                fixedAny = true;
+                break;
+              }
+            }
+            // ثانياً: جرب فاتورة تالتة عندها صنف مميز (حتى مقيد) نقدر ناخده
+            if (!done4) {
+              for (let k = 0; k < ic && !done4; k++) {
+                if (k === a || k === b) continue;
+                const cands = Object.keys(invs[k].items).filter(n => canTouch(n) && invs[k].items[n] > 0 && !invs[b].items[n]);
+                for (const name of cands) {
+                  const p = products.find(p => p.name === name);
+                  if (!p) continue;
+                  const willFullyRemove = invs[k].items[name] === 1;
+                  if (willFullyRemove && ipi && (countItems(invs[k]) - weightOf(invs[k], name) < ipi)) continue;
+                  const newB = parseFloat((invs[b].total + p.piecePrice).toFixed(2));
+                  const newK = parseFloat((invs[k].total - p.piecePrice).toFixed(2));
+                  if (newK <= 0 || Math.abs(invs[a].total - newB) < MIN_DIFF) continue;
+                  if (!safeAgainstAll(b, newB, k) || !safeAgainstAll(k, newK, b)) continue;
+                  
+                  invs[k].items[name]--;
+                  if (invs[k].items[name] <= 0) delete invs[k].items[name];
+                  invs[k].total = newK;
+                  invs[b].items[name] = (invs[b].items[name] || 0) + 1;
+                  invs[b].total = newB;
+                  done4 = true;
+                  fixedAny = true;
+                  break;
+                }
+              }
+            }
+            // ثالثاً: زوّد كمية صنف غير مقيد (زي ممتاز لتر أو سمن)
+            // موجود عند b بعدة قطع (مش قطعة واحدة بس) من المخزون
+            // العام — جرب كذا كمية مختلفة عشان تلاقي فرق كافي
+            if (!done4 && stock) {
+              const boostCandidates = Object.keys(invs[b].items)
+                .filter(n => canTouch(n) && !isRestrictedOne(n) && invs[b].items[n] > 0)
+                .sort((x, y) => {
+                  const px = products.find(p => p.name === x)?.piecePrice || 0;
+                  const py = products.find(p => p.name === y)?.piecePrice || 0;
+                  return px - py;
+                });
+              boostSearch: for (const name of boostCandidates) {
+                const p = products.find(p => p.name === name);
+                if (!p) continue;
+                const maxTry = Math.min(stock[name] || 0, 8);
+                for (let n = 1; n <= maxTry; n++) {
+                  const newB = parseFloat((invs[b].total + n * p.piecePrice).toFixed(2));
+                  if (Math.abs(invs[a].total - newB) < MIN_DIFF) continue;
+                  if (!safeAgainstAll(b, newB, a)) continue;
+                  
+                  invs[b].items[name] += n;
+                  invs[b].total = newB;
+                  stock[name] -= n;
+                  done4 = true;
+                  fixedAny = true;
+                  break boostSearch;
+                }
+              }
+            }
+            // رابعاً: لو المخزون العام فاضي أو مش كافي، جرب تاخد
+            // عدة قطع من صنف غير مقيد من فاتورة تالتة (حتى لو b
+            // عندها الصنف ده بالفعل — المهم الفرق يبقى كافي)
+            if (!done4) {
+              for (let k = 0; k < ic && !done4; k++) {
+                if (k === a || k === b) continue;
+                const cands = Object.keys(invs[k].items)
+                  .filter(n => canTouch(n) && !isRestrictedOne(n) && invs[k].items[n] > 0)
+                  .sort((x, y) => {
+                    const px = products.find(p => p.name === x)?.piecePrice || 0;
+                    const py = products.find(p => p.name === y)?.piecePrice || 0;
+                    return px - py;
+                  });
+                candSearch: for (const name of cands) {
+                  const p = products.find(p => p.name === name);
+                  if (!p) continue;
+                  const maxTry = Math.min(invs[k].items[name], 8);
+                  for (let n = 1; n <= maxTry; n++) {
+                    const remainingK = invs[k].items[name] - n;
+                    if (remainingK > 0 && remainingK < (name.includes('سمن') ? 3 : 1) - 1) continue; // احترام حد أدنى السمن لو فضل جزء
+                    if (ipi) {
+                      const willFullyRemove = remainingK <= 0;
+                      if (willFullyRemove && (countItems(invs[k]) - calculateItemWeight(name, invs[k].items[name]) < ipi)) continue;
+                    }
+                    const newB = parseFloat((invs[b].total + n * p.piecePrice).toFixed(2));
+                    const newK = parseFloat((invs[k].total - n * p.piecePrice).toFixed(2));
+                    if (newK < 0) continue;
+                    if (Math.abs(invs[a].total - newB) < MIN_DIFF) continue;
+                    if (!safeAgainstAll(b, newB, k)) continue;
+                    if (newK > 0 && !safeAgainstAll(k, newK, b)) continue;
+                    
+                    invs[k].items[name] -= n;
+                    if (invs[k].items[name] <= 0) delete invs[k].items[name];
+                    invs[k].total = newK;
+                    invs[b].items[name] = (invs[b].items[name] || 0) + n;
+                    invs[b].total = newB;
+                    done4 = true;
+                    fixedAny = true;
+                    break candSearch;
+                  }
+                }
+              }
+            }
+            
+            // خامساً: لو لسه مفيش حل، جرب تركيبة من صنفين مختلفين
+            // مع بعض (نقل قطعة من صنف A وقطعة من صنف B لنفس الفاتورة
+            // b مرة واحدة) — ده بيوسّع مساحة الحلول الممكنة أكتر من
+            // تجربة صنف واحد بمفرده بكميات مختلفة
+            if (!done4 && stock) {
+              const affordable = non55.filter(p => !isRestrictedOne(p.name) && stock[p.name] > 0);
+              comboSearch: for (let i1 = 0; i1 < affordable.length; i1++) {
+                for (let i2 = i1; i2 < affordable.length; i2++) {
+                  const p1 = affordable[i1], p2 = affordable[i2];
+                  const newB = parseFloat((invs[b].total + p1.piecePrice + p2.piecePrice).toFixed(2));
+                  if (Math.abs(invs[a].total - newB) < MIN_DIFF) continue;
+                  if (!safeAgainstAll(b, newB, a)) continue;
+                  if (p1.name === p2.name && stock[p1.name] < 2) continue;
+                  
+                  invs[b].items[p1.name] = (invs[b].items[p1.name] || 0) + 1;
+                  invs[b].items[p2.name] = (invs[b].items[p2.name] || 0) + 1;
+                  invs[b].total = newB;
+                  stock[p1.name]--;
+                  stock[p2.name]--;
+                  done4 = true;
+                  fixedAny = true;
+                  break comboSearch;
+                }
+              }
+            }
+            
+            // سادساً: نفس فكرة الكومبو لكن بسحب قطع من فواتير تالتة
+            // مختلفة (مش من المخزون العام اللي غالباً فاضي في اللحظة
+            // دي) — نجمع كل الأصناف غير المقيدة المتاحة في كل
+            // الفواتير التانية، ونجرب كل زوج ممكن منها معاً
+            if (!done4) {
+              const pool = []; // { k, name, price }
+              for (let k = 0; k < ic; k++) {
+                if (k === a || k === b) continue;
+                Object.keys(invs[k].items).forEach(name => {
+                  if (!canTouch(name) || isRestrictedOne(name)) return;
+                  const qty = invs[k].items[name];
+                  if (qty <= 0) return;
+                  // احترم حد أدنى السمن (لازم يفضل 0 أو ≥2 بعد السحب)
+                  if (name.includes('سمن') && qty === 2) return; // متلعبش لو هيوصل لـ1 (غير مسموح)
+                  const p = products.find(p => p.name === name);
+                  if (!p) return;
+                  pool.push({ k, name, price: p.piecePrice });
+                });
+              }
+              pool.sort((x, y) => x.price - y.price);
+              
+              poolCombo: for (let i1 = 0; i1 < pool.length; i1++) {
+                for (let i2 = i1; i2 < pool.length; i2++) {
+                  const e1 = pool[i1], e2 = pool[i2];
+                  if (e1.k === e2.k && e1.name === e2.name && invs[e1.k].items[e1.name] < 2) continue;
+                  
+                  const newB = parseFloat((invs[b].total + e1.price + e2.price).toFixed(2));
+                  if (Math.abs(invs[a].total - newB) < MIN_DIFF) continue;
+                  if (!safeAgainstAll(b, newB, e1.k === e2.k ? e1.k : -1)) {
+                    // فحص شامل مبسط: تأكد إن newB بعيدة عن كل الفواتير عدا a/b (وممكن e1.k/e2.k هيتغيروا لكن هنتأكد منهم كمان تحت)
+                  }
+                  let safe = true;
+                  for (let kk = 0; kk < ic; kk++) {
+                    if (kk === a || kk === b) continue;
+                    let otherTotal = invs[kk].total;
+                    if (kk === e1.k) otherTotal -= e1.price;
+                    if (kk === e2.k) otherTotal -= e2.price;
+                    if (Math.abs(otherTotal - newB) < MIN_DIFF) { safe = false; break; }
+                  }
+                  if (!safe) continue;
+                  
+                  const newKTotals = {};
+                  newKTotals[e1.k] = (newKTotals[e1.k] ?? invs[e1.k].total) - e1.price;
+                  newKTotals[e2.k] = (newKTotals[e2.k] ?? invs[e2.k].total) - e2.price;
+                  let kTotalsOk = true;
+                  for (const kStr of Object.keys(newKTotals)) {
+                    if (newKTotals[kStr] < 0) { kTotalsOk = false; break; }
+                  }
+                  if (!kTotalsOk) continue;
+                  
+                  invs[e1.k].items[e1.name]--;
+                  if (invs[e1.k].items[e1.name] <= 0) delete invs[e1.k].items[e1.name];
+                  invs[e1.k].total = parseFloat((invs[e1.k].total - e1.price).toFixed(2));
+                  invs[e2.k].items[e2.name]--;
+                  if (invs[e2.k].items[e2.name] <= 0) delete invs[e2.k].items[e2.name];
+                  invs[e2.k].total = parseFloat((invs[e2.k].total - e2.price).toFixed(2));
+                  invs[b].items[e1.name] = (invs[b].items[e1.name] || 0) + 1;
+                  invs[b].items[e2.name] = (invs[b].items[e2.name] || 0) + 1;
+                  invs[b].total = newB;
+                  done4 = true;
+                  fixedAny = true;
+                  break poolCombo;
+                }
+              }
+            }
+          }
+        }
       }
     }
     
@@ -1417,13 +1665,18 @@ function eliminateDuplicateInvoices(invs, ic, non55, s55, ipi, stock) {
   }
 }
 
-function generateInvoices() {
-  const ipi = parseInt(document.getElementById('invoiceItemCount').value) || 5;
-  const ic = parseInt(document.getElementById('invoiceCount').value);
-  const MIN = 250;
-  if (!ic) return;
+// ══════════════════════════════════════════════════════════
+// محاولة توزيع واحدة: بترجع { logs, finalStock, ic } من غير ما
+// تلمس db أو الواجهة. المستدعي (generateInvoices) بيقيّم النتيجة
+// ويختار أفضل محاولة من عدة محاولات.
+// ══════════════════════════════════════════════════════════
+function attemptGenerateOnce(requestedIc, ipi) {
+  const ic = requestedIc;
+  const MIN = 200;
+  if (!ic) return { logs: [], finalStock: {}, ic };
   
   const s55 = products.find(p => p.name.includes('55'));
+  const DIFF_MIN = 25; // الحد الأدنى للفرق المقبول بين أي فاتورتين
   
   // المخزون بالقطع
   const stock = {};
@@ -1450,8 +1703,28 @@ function generateInvoices() {
   }
   
   // ══════════════════════════════════════════════
+  // ── سلم قيم مستهدف (Target Ladder) ──
+  // بدل ما نوازن كل الفواتير على نفس القيمة (اللي بيولّد فواتير
+  // متشابهة القيمة من الأساس)، بنحدد لكل فاتورة "هدف قيمة" مختلف
+  // عن جارتها بفارق ثابت أكبر من الحد الأدنى المطلوب من أول خطوة.
+  // بعدين خطوات التوزيع بتوجّه كل فاتورة نحو هدفها هي، فالفروق
+  // بين الفواتير بتطلع صح من غير ما نحتاج "نصلح" تشابه بعد كده.
+  // ══════════════════════════════════════════════
+  const totalStockValue = products.reduce((s, p) => s + (stock[p.name] > 0 ? stock[p.name] * p.piecePrice : 0), 0);
+  const avgExpected = totalStockValue / ic;
+  // هامش أمان أكبر من الحد الأدنى المطلوب، عشان نضمن فرق كافي حتى بعد
+  // تقريب/تقييد القطع (المقيدين بقطعة واحدة، حدود المخزون، إلخ)
+  const LADDER_STEP = DIFF_MIN * 1.5;
+  // رتب الفواتير عشوائياً على السلم عشان مفيش فاتورة "دايماً الأكبر"
+  const ladderOrder = shuffleArray([...Array(ic).keys()]);
+  const mid = (ic - 1) / 2;
+  ladderOrder.forEach((invIdx, rank) => {
+    invs[invIdx].target = avgExpected + (rank - mid) * LADDER_STEP;
+  });
+  
+  // ══════════════════════════════════════════════
   // الخطوة 2: وزع باقي الأصناف
-  // لكل قطعة: أضفها للفاتورة الأقل قيمة اللي لسه ناقصها أصناف
+  // لكل قطعة: أضفها لأنسب فاتورة حسب المسافة المتبقية لهدفها
   // (Fisher-Yates Shuffle لترتيب الأصناف + كسر تعادل عشوائي بين الفواتير)
   // ══════════════════════════════════════════════
   const non55 = shuffleArray(products.filter(p => !s55 || p.name !== s55.name));
@@ -1464,17 +1737,15 @@ function generateInvoices() {
         .filter(i => invs[i].itemCount < ipi || invs[i].items[p.name] !== undefined);
       if (eligible.length === 0) break;
       
-      // إحصائيات عامة لحساب التوازن (مرة واحدة لكل قطعة مش لكل مرشح)
-      const avgTotal = invs.reduce((s, x) => s + x.total, 0) / ic;
       const avgItemCount = invs.reduce((s, x) => s + x.itemCount, 0) / ic;
       
-      // ── نظام Score: يختار الفاتورة الأنسب بدل الأقل قيمة بس ──
+      // ── نظام Score: يختار الفاتورة الأقرب لهدفها هي (مش هدف موحّد) ──
       let bestI = eligible[0],
         bestScore = -Infinity;
       for (const idx of eligible) {
         const inv = invs[idx];
         let score = 0;
-        score += (avgTotal - inv.total); // الأقل قيمة = سكور أعلى
+        score += (inv.target - inv.total); // الأبعد تحت هدفها = سكور أعلى (كل فاتورة بهدفها الخاص)
         score += (avgItemCount - inv.itemCount) * 3; // الأقل عدد أصناف = سكور أعلى
         if (inv.items[p.name] === undefined) score += 5; // تفضيل التنويع
         
@@ -1503,13 +1774,13 @@ function generateInvoices() {
   
   // ══════════════════════════════════════════════
   // الخطوة 3: وزع الأصناف المتبقية (غير 55) على
-  // الفواتير الأقل قيمة حتى تخلص كلها
+  // الفواتير الأبعد تحت هدفها حتى تخلص كلها
   // ══════════════════════════════════════════════
   let hasRemaining = true;
   while (hasRemaining) {
     hasRemaining = false;
-    // رتب الفواتير من الأقل للأعلى قيمة (حتمي، بدون عشوائية)
-    const sorted = [...Array(ic).keys()].sort((a, b) => invs[a].total - invs[b].total);
+    // رتب الفواتير حسب المسافة لهدفها (الأبعد تحت الهدف أولاً)
+    const sorted = [...Array(ic).keys()].sort((a, b) => (invs[b].target - invs[b].total) - (invs[a].target - invs[a].total));
     for (const p of non55) {
       if (stock[p.name] <= 0) continue;
       for (const i of sorted) {
@@ -1519,17 +1790,66 @@ function generateInvoices() {
         invs[i].total += p.piecePrice;
         stock[p.name]--;
         hasRemaining = true;
-        break; // انتقل للصنف التالي بعد ما تضيف للأقل قيمة
+        break; // انتقل للصنف التالي بعد ما تضيف للأبعد تحت هدفها
       }
     }
   }
   
   // ══════════════════════════════════════════════
-  // الخطوة 4: كسر التشابه - قارن كل الفواتير ببعض
-  // لو في قيمتين متقاربات (فرق أقل من 50 جنيه)
-  // انقل قطعة من صنف بين الفاتورتين عشان تفرق بينهم
+  // ── معايرة نهائية بالأصناف الوفيرة ──
+  // لو صنف معين عنده فائض كبير في المخزون (أكتر من عدد الفواتير
+  // بكتير)، توزيعه بالتساوي على كل الفواتير (زي خطوة 3 فوق) بيلغي
+  // فروق السلم المستهدف بدل ما يدعمها (لأن كل فاتورة بتاخد نفس
+  // القدر تقريباً). هنا بنصحح وضعه: بعد التوزيع الأساسي، بنعيد
+  // توزيع القطع الوفيرة (بدل ما تتوزع بالتساوي) بحيث الفاتورة
+  // الأعلى على السلم تاخد أكتر والأقل تاخد أقل، فتدعم الفروق
+  // المطلوبة بدل ما تمحيها.
   // ══════════════════════════════════════════════
-  const DIFF_MIN = 50; // الحد الأدنى للفرق المقبول بين فاتورتين
+  const abundantNames = non55
+    .filter(p => !isRestrictedOne(p.name))
+    .map(p => p.name);
+  
+  for (let pass = 0; pass < 3; pass++) {
+    // رتب الفواتير حسب هدفها (الأعلى هدف أول)
+    const byTarget = [...Array(ic).keys()].sort((a, b) => invs[b].target - invs[a].target);
+    
+    for (let ri = 0; ri < byTarget.length; ri++) {
+      const i = byTarget[ri];
+      const gapToTarget = invs[i].total - invs[i].target; // موجب = فوق الهدف، سالب = تحت
+      if (Math.abs(gapToTarget) < 1) continue;
+      
+      for (const name of abundantNames) {
+        const p = products.find(p => p.name === name);
+        if (!p) continue;
+        
+        if (gapToTarget < -5) {
+          // الفاتورة تحت هدفها → لو عند فاتورة تانية (أقل ترتيباً/هدفاً) فائض من الصنف ده، خد قطعة منها
+          for (let rj = byTarget.length - 1; rj > ri; rj--) {
+            const j = byTarget[rj];
+            const qtyJ = invs[j].items[name] || 0;
+            if (qtyJ <= 1) continue; // سيبلها على الأقل قطعة لو عندها
+            if (name.includes('سمن') && qtyJ - 1 < 2 && qtyJ - 1 > 0) continue; // منع كسر حد السمن
+            const willFullyRemove = qtyJ === 1;
+            if (willFullyRemove && ipi && countItems(invs[j]) - calculateItemWeight(name, qtyJ) < ipi) continue;
+            
+            invs[j].items[name]--;
+            invs[j].total -= p.piecePrice;
+            if (invs[j].items[name] <= 0) delete invs[j].items[name];
+            invs[i].items[name] = (invs[i].items[name] || 0) + 1;
+            invs[i].total += p.piecePrice;
+            break;
+          }
+        }
+      }
+    }
+  }
+  
+  // ══════════════════════════════════════════════
+  // الخطوة 4: كسر التشابه (شبكة أمان احتياطية) - قارن كل الفواتير
+  // ببعض، لو في قيمتين متقاربات (فرق أقل من الحد الأدنى) انقل
+  // قطعة من صنف بين الفاتورتين عشان تفرق بينهم. عادة مش هيحتاج
+  // يشتغل كتير لأن سلم القيم المستهدف فوق أصلاً بيفرّق القيم.
+  // ══════════════════════════════════════════════
   
   // كرر لحد ما محدش قريب من التاني
   for (let pass = 0; pass < 20; pass++) {
@@ -1543,6 +1863,15 @@ function generateInvoices() {
         // الفاتورة الأعلى تعطي قطعة للأقل
         const hi = invs[a].total >= invs[b].total ? a : b;
         const lo = hi === a ? b : a;
+        
+        // تحقق شامل: القيمة الجديدة مقبولة بس لو محدش قريب منها من باقي الفواتير
+        const safeAgainstAll4 = (idx, newTotal, skipIdx) => {
+          for (let k = 0; k < ic; k++) {
+            if (k === idx || k === skipIdx) continue;
+            if (Math.abs(invs[k].total - newTotal) < DIFF_MIN) return false;
+          }
+          return true;
+        };
         
         // ابحث عن صنف في الفاتورة الأعلى ممكن ننقل منه قطعة
         // الأولوية للأصناف الوفيرة (زي ممتاز لتر) مش الأصناف المقيدة النادرة
@@ -1563,29 +1892,25 @@ function generateInvoices() {
           // منع نقص عدد أصناف hi عن الحد الأدنى (ipi) لو النقل هيشيل الصنف بالكامل
           if (qty === 1 && ipi && countItems(invs[hi]) - 1 < ipi) continue;
           
+          const newHiTotal = invs[hi].total - p.piecePrice;
+          const newLoTotal = invs[lo].total + p.piecePrice;
+          
+          // تحقق: هل الفرق هيتحسن، ومحدش تالت هيتقرب؟
+          const newDiff = Math.abs(newHiTotal - newLoTotal);
+          if (newDiff < DIFF_MIN) continue;
+          if (!safeAgainstAll4(hi, newHiTotal, lo) || !safeAgainstAll4(lo, newLoTotal, hi)) continue;
+          
           // انقل قطعة واحدة من hi → lo
           invs[hi].items[name]--;
-          invs[hi].total -= p.piecePrice;
+          invs[hi].total = newHiTotal;
           if (invs[hi].items[name] === 0) delete invs[hi].items[name];
           
           invs[lo].items[name] = (invs[lo].items[name] || 0) + 1;
-          invs[lo].total += p.piecePrice;
+          invs[lo].total = newLoTotal;
           
-          // تحقق: هل الفرق اتحسن؟
-          const newDiff = Math.abs(invs[hi].total - invs[lo].total);
-          if (newDiff >= DIFF_MIN) {
-            moved = true;
-            changed = true;
-            break;
-          }
-          
-          // مش كافي، رجّع
-          invs[lo].items[name]--;
-          invs[lo].total -= p.piecePrice;
-          if (invs[lo].items[name] === 0) delete invs[lo].items[name];
-          
-          invs[hi].items[name] = (invs[hi].items[name] || 0) + 1;
-          invs[hi].total += p.piecePrice;
+          moved = true;
+          changed = true;
+          break;
         }
         
         // لو مش قادر ينقل، جرب يضيف من المخزون المتبقي (الأصناف الوفيرة أولاً)
@@ -1599,16 +1924,15 @@ function generateInvoices() {
           for (const p of stockCandidates) {
             if (stock[p.name] <= 0) continue;
             if (invMaxedOut(invs[lo], p.name)) continue; // بلغت الحد الأقصى (1 ق)
+            const newLoTotal = invs[lo].total + p.piecePrice;
+            const newDiff = Math.abs(invs[hi].total - newLoTotal);
+            if (newDiff < DIFF_MIN) continue;
+            if (!safeAgainstAll4(lo, newLoTotal, hi)) continue;
             invs[lo].items[p.name] = (invs[lo].items[p.name] || 0) + 1;
-            invs[lo].total += p.piecePrice;
+            invs[lo].total = newLoTotal;
             stock[p.name]--;
-            const newDiff = Math.abs(invs[hi].total - invs[lo].total);
-            if (newDiff >= DIFF_MIN) { changed = true; break; }
-            // مش كافي، رجّع
-            invs[lo].items[p.name]--;
-            invs[lo].total -= p.piecePrice;
-            if (invs[lo].items[p.name] === 0) delete invs[lo].items[p.name];
-            stock[p.name]++;
+            changed = true;
+            break;
           }
         }
       }
@@ -1618,7 +1942,7 @@ function generateInvoices() {
   
   // ══════════════════════════════════════════════
   // ── تشيك نهائي: كسر التشابه في القيم ──
-  fixSimilarTotals(invs, ic, non55, s55, ipi);
+  fixSimilarTotals(invs, ic, non55, s55, ipi, DIFF_MIN);
   
   // الخطوة 5: تسوية عدد الأصناف - double check
   // يكرر لحد ما محدش يتغير (stable)
@@ -1652,13 +1976,31 @@ function generateInvoices() {
         // منع نقص عدد أصناف hi عن الحد الأدنى (ipi) لو النقل هيشيل الصنف بالكامل
         if (qty === 1 && ipi && countItems(invs[hi]) - 1 < ipi) continue;
         
+        // منع النقل لو هيكسر الفرق المطلوب (DIFF_MIN) بين hi/lo أو بين
+        // أي فاتورة تالتة كانت أصلاً قريبة من قيمة hi أو lo الجديدة
+        const newHiTotal = invs[hi].total - p.piecePrice;
+        const newLoTotal = invs[lo].total + p.piecePrice;
+        let breaksGap = false;
+        for (let k = 0; k < ic; k++) {
+          if (k === hi) continue;
+          if (Math.abs(invs[k].total - newHiTotal) < DIFF_MIN) { breaksGap = true; break; }
+        }
+        if (!breaksGap) {
+          for (let k = 0; k < ic; k++) {
+            if (k === lo) continue;
+            const otherTotal = k === hi ? newHiTotal : invs[k].total;
+            if (Math.abs(otherTotal - newLoTotal) < DIFF_MIN) { breaksGap = true; break; }
+          }
+        }
+        if (breaksGap) continue;
+        
         // انقل قطعة واحدة من hi → lo
         invs[hi].items[name]--;
-        invs[hi].total -= p.piecePrice;
+        invs[hi].total = newHiTotal;
         if (invs[hi].items[name] === 0) delete invs[hi].items[name];
         
         invs[lo].items[name] = (invs[lo].items[name] || 0) + 1;
-        invs[lo].total += p.piecePrice;
+        invs[lo].total = newLoTotal;
         
         moved = true;
         globalChanged = true;
@@ -1674,7 +2016,7 @@ function generateInvoices() {
   // عشان نضمن إن مفيش فاتورتين بفرق أقل من 25 ج حتى لو
   // خطوة التسوية رجعتهم متشابهين
   // ══════════════════════════════════════════════
-  fixSimilarTotals(invs, ic, non55, s55, ipi);
+  fixSimilarTotals(invs, ic, non55, s55, ipi, DIFF_MIN);
   
   // ══════════════════════════════════════════════
   // تقليل نسبة التشابه بين الفواتير (Jaccard) لأقل من 70%
@@ -1698,8 +2040,16 @@ function generateInvoices() {
             if (stock[p.name] <= 0) continue;
             if (invs[other].items[p.name]) continue; // لازم يكون مميز عن التانية
             if (invMaxedOut(invs[target], p.name)) continue;
+            // متضيفش القطعة لو هتخلي قيمة target تقرب أوي من فاتورة تانية
+            const newTotal = invs[target].total + p.piecePrice;
+            let breaksGap = false;
+            for (let k = 0; k < ic; k++) {
+              if (k === target) continue;
+              if (Math.abs(invs[k].total - newTotal) < DIFF_MIN) { breaksGap = true; break; }
+            }
+            if (breaksGap) continue;
             invs[target].items[p.name] = (invs[target].items[p.name] || 0) + 1;
-            invs[target].total += p.piecePrice;
+            invs[target].total = newTotal;
             stock[p.name]--;
             added = true;
             changed = true;
@@ -1712,13 +2062,432 @@ function generateInvoices() {
     if (!changed) break;
   }
   // الإضافات فوق ممكن تكون أثرت على فروق القيم، فنعيد الفحص أخيراً
-  fixSimilarTotals(invs, ic, non55, s55, ipi);
+  fixSimilarTotals(invs, ic, non55, s55, ipi, DIFF_MIN);
   
   // ══════════════════════════════════════════════
   // 🛡️ الحارس الأخير: تأكد نهائياً إن مفيش فاتورتين ببصمة
   // متطابقة (نفس الأصناف بالظبط)، وأصلحهم لو لقى أي تطابق
   // ══════════════════════════════════════════════
-  eliminateDuplicateInvoices(invs, ic, non55, s55, ipi, stock);
+  eliminateDuplicateInvoices(invs, ic, non55, s55, ipi, stock, DIFF_MIN);
+  
+  // ══════════════════════════════════════════════
+  // 🛡️ فحص أخير بعد العروض الإضافية: العروض (خصم الصفيح، خصم
+  // السمن 1%، خصم الزيوت 1%) بتتفعّل بشروط مختلفة لكل فاتورة،
+  // فالقيمة الصافية بعد الخصم ممكن تختلف عن القيمة الخام اللي
+  // كنا بنحافظ على فرقها أثناء التوزيع. هنا بنعيد حساب القيمة
+  // الحقيقية بعد كل الخصومات، ولو لقينا فاتورتين قريبتين، بننقل
+  // قطعة وفيرة (مش مقيدة) بينهم لحد ما الفرق يبقى كافي.
+  // ══════════════════════════════════════════════
+  const computeNetTotal = inv => {
+    const items = Object.entries(inv.items)
+      .filter(([, q]) => q > 0)
+      .map(([name, qty]) => ({ name, qtyPieces: qty }));
+    return applyAdditionalOffers(items).total;
+  };
+  
+  // ── دورة خارجية: نكرر الفحص كامل عدة مرات، وكل مرة نبدأ بترتيب
+  // مختلف للأزواج (شافل)، عشان لو مرة وصلت لحل مستقر جزئياً
+  // (local optimum) من غير ما تلاقي حل لبعض الأزواج، محاولة
+  // بترتيب مختلف ممكن تلاقي مخرج تاني للزوج نفسه ──
+  for (let outer = 0; outer < 4; outer++) {
+  const pairOrder = shuffleArray(
+    Array.from({ length: ic }, (_, a) => a).flatMap(a =>
+      Array.from({ length: ic - a - 1 }, (_, k) => [a, a + k + 1])
+    )
+  );
+  for (let pass = 0; pass < 150; pass++) {
+    let changed = false;
+    for (const [a, b] of pairOrder) {
+      {
+        const netA = computeNetTotal(invs[a]);
+        const netB = computeNetTotal(invs[b]);
+        if (Math.abs(netA - netB) >= DIFF_MIN) continue;
+        
+        const hi = netA >= netB ? a : b;
+        const lo = hi === a ? b : a;
+        
+        // جرب صنف وفير (غير مقيد) في hi تقدر تنقله لـ lo وتحسّن الفرق الصافي
+        const hiNamesSorted = Object.keys(invs[hi].items)
+          .filter(n => (!s55 || n !== s55.name) && invs[hi].items[n] > 0 && (!n.includes('سمن') || invs[hi].items[n] > 2))
+          .sort((x, y) => {
+            const rx = isRestrictedOne(x) ? 1 : 0,
+              ry = isRestrictedOne(y) ? 1 : 0;
+            if (rx !== ry) return rx - ry;
+            return (invs[hi].items[y] || 0) - (invs[hi].items[x] || 0);
+          });
+        
+        let fixed = false;
+        for (const name of hiNamesSorted) {
+          if (invMaxedOut(invs[lo], name)) continue;
+          const qty = invs[hi].items[name];
+          const willFullyRemove = qty === 1;
+          if (willFullyRemove && ipi && countItems(invs[hi]) - calculateItemWeight(name, qty) < ipi) continue;
+          
+          // جرّب النقل واحسب الصافي الجديد فعلياً (بسبب العروض المشروطة)
+          invs[hi].items[name]--;
+          if (invs[hi].items[name] <= 0) delete invs[hi].items[name];
+          invs[lo].items[name] = (invs[lo].items[name] || 0) + 1;
+          
+          const newNetHi = computeNetTotal(invs[hi]);
+          const newNetLo = computeNetTotal(invs[lo]);
+          const p = products.find(p => p.name === name);
+          const newRawHi = invs[hi].total - p.piecePrice;
+          const newRawLo = invs[lo].total + p.piecePrice;
+          
+          // تأكد إن الفرق الصافي اتحسن ومحدش تالت (بالقيمة الصافية بعد العروض) هيتقرب
+          let safe = Math.abs(newNetHi - newNetLo) >= DIFF_MIN;
+          if (safe) {
+            for (let k = 0; k < ic; k++) {
+              if (k === hi || k === lo) continue;
+              const netK = computeNetTotal(invs[k]);
+              if (Math.abs(netK - newNetHi) < DIFF_MIN || Math.abs(netK - newNetLo) < DIFF_MIN) { safe = false; break; }
+            }
+          }
+          
+          if (safe) {
+            invs[hi].total = newRawHi;
+            invs[lo].total = newRawLo;
+            fixed = true;
+            changed = true;
+            break;
+          }
+          
+          // رجّع لو مش كافي
+          invs[lo].items[name]--;
+          if (invs[lo].items[name] <= 0) delete invs[lo].items[name];
+          invs[hi].items[name] = (invs[hi].items[name] || 0) + 1;
+        }
+        
+        // ── Fallback 2: لو مفيش صنف نقدر ننقله من hi، جرب نضيف صنف
+        // من المخزون المتبقي لـ lo عشان نبعّدها عن hi ──
+        if (!fixed && stock) {
+          const stockCandidates = non55.slice().sort((x, y) => {
+            const rx = isRestrictedOne(x.name) ? 1 : 0,
+              ry = isRestrictedOne(y.name) ? 1 : 0;
+            if (rx !== ry) return rx - ry;
+            return (stock[y.name] || 0) - (stock[x.name] || 0);
+          });
+          for (const p of stockCandidates) {
+            if (stock[p.name] <= 0) continue;
+            if (invMaxedOut(invs[lo], p.name)) continue;
+            
+            invs[lo].items[p.name] = (invs[lo].items[p.name] || 0) + 1;
+            const newNetLo2 = computeNetTotal(invs[lo]);
+            const newNetHi2 = computeNetTotal(invs[hi]);
+            
+            let safe2 = Math.abs(newNetHi2 - newNetLo2) >= DIFF_MIN;
+            if (safe2) {
+              for (let k = 0; k < ic; k++) {
+                if (k === hi || k === lo) continue;
+                const netK = computeNetTotal(invs[k]);
+                if (Math.abs(netK - newNetLo2) < DIFF_MIN) { safe2 = false; break; }
+              }
+            }
+            
+            if (safe2) {
+              invs[lo].total += p.piecePrice;
+              stock[p.name]--;
+              fixed = true;
+              changed = true;
+              break;
+            }
+            // رجّع لو مش كافي
+            invs[lo].items[p.name]--;
+            if (invs[lo].items[p.name] <= 0) delete invs[lo].items[p.name];
+            stock[p.name]++;
+          }
+        }
+        
+        // ── Fallback 3: Swap صنف من hi بصنف تاني من lo (بيغيّر
+        // الفرق بمقدار السعرين مع بعض، مساحة مناورة أوسع من نقل
+        // قطعة واحدة، مفيد لما كل الفواتير عندها نفس الأصناف تقريباً) ──
+        if (!fixed) {
+          const namesHi = Object.keys(invs[hi].items)
+            .filter(n => (!s55 || n !== s55.name) && invs[hi].items[n] > 0 && (!n.includes('سمن') || invs[hi].items[n] > 2));
+          const namesLo = Object.keys(invs[lo].items)
+            .filter(n => (!s55 || n !== s55.name) && invs[lo].items[n] > 0 && (!n.includes('سمن') || invs[lo].items[n] > 2));
+          
+          swapSearch: for (const nameHi of namesHi) {
+            const pHi = products.find(p => p.name === nameHi);
+            if (!pHi) continue;
+            const qtyHi = invs[hi].items[nameHi];
+            const willFullyRemoveHi = qtyHi === 1;
+            if (willFullyRemoveHi && ipi && countItems(invs[hi]) - calculateItemWeight(nameHi, qtyHi) < ipi) continue;
+            
+            for (const nameLo of namesLo) {
+              if (nameHi === nameLo) continue;
+              const pLo = products.find(p => p.name === nameLo);
+              if (!pLo) continue;
+              if (isRestrictedOne(nameLo) && invs[hi].items[nameLo]) continue;
+              if (isRestrictedOne(nameHi) && invs[lo].items[nameHi]) continue;
+              const qtyLo = invs[lo].items[nameLo];
+              const willFullyRemoveLo = qtyLo === 1;
+              if (willFullyRemoveLo && ipi && countItems(invs[lo]) - calculateItemWeight(nameLo, qtyLo) < ipi) continue;
+              
+              // جرّب الـ swap: قطعة nameHi من hi → lo، وقطعة nameLo من lo → hi
+              invs[hi].items[nameHi]--;
+              if (invs[hi].items[nameHi] <= 0) delete invs[hi].items[nameHi];
+              invs[hi].items[nameLo] = (invs[hi].items[nameLo] || 0) + 1;
+              invs[lo].items[nameLo]--;
+              if (invs[lo].items[nameLo] <= 0) delete invs[lo].items[nameLo];
+              invs[lo].items[nameHi] = (invs[lo].items[nameHi] || 0) + 1;
+              
+              const newNetHi3 = computeNetTotal(invs[hi]);
+              const newNetLo3 = computeNetTotal(invs[lo]);
+              
+              let safe3 = Math.abs(newNetHi3 - newNetLo3) >= DIFF_MIN;
+              if (safe3) {
+                for (let k = 0; k < ic; k++) {
+                  if (k === hi || k === lo) continue;
+                  const netK = computeNetTotal(invs[k]);
+                  if (Math.abs(netK - newNetHi3) < DIFF_MIN || Math.abs(netK - newNetLo3) < DIFF_MIN) { safe3 = false; break; }
+                }
+              }
+              
+              if (safe3) {
+                invs[hi].total = invs[hi].total - pHi.piecePrice + pLo.piecePrice;
+                invs[lo].total = invs[lo].total - pLo.piecePrice + pHi.piecePrice;
+                fixed = true;
+                changed = true;
+                break swapSearch;
+              }
+              
+              // رجّع لو مش كافي
+              invs[hi].items[nameLo]--;
+              if (invs[hi].items[nameLo] <= 0) delete invs[hi].items[nameLo];
+              invs[hi].items[nameHi] = (invs[hi].items[nameHi] || 0) + 1;
+              invs[lo].items[nameHi]--;
+              if (invs[lo].items[nameHi] <= 0) delete invs[lo].items[nameHi];
+              invs[lo].items[nameLo] = (invs[lo].items[nameLo] || 0) + 1;
+            }
+          }
+        }
+        
+
+        if (fixed) break;
+      }
+    }
+    if (!changed) break;
+  }
+  
+  // لو وصلنا لحد أقصى الفرق المطلوب في كل الأزواج، خلاص مفيش داعي نكرر تاني
+  let allGood = true;
+  for (let a = 0; a < ic && allGood; a++) {
+    for (let b = a + 1; b < ic && allGood; b++) {
+      if (Math.abs(computeNetTotal(invs[a]) - computeNetTotal(invs[b])) < DIFF_MIN) allGood = false;
+    }
+  }
+  if (allGood) break;
+  } // outer
+  
+  // ══════════════════════════════════════════════
+  // 🛡️ حارس إضافي: الفحص الأخير على الصافي فوق بيحرك قطع كتير،
+  // وممكن بالصدفة يخلق فاتورتين ببصمة متطابقة تماماً (تركيبة
+  // أصناف مطابقة). eliminateDuplicateInvoices اتنفذت قبل الفحص
+  // ده، فلازم نعيدها تاني هنا كحارس أخير قبل أي خطوة تانية.
+  // ══════════════════════════════════════════════
+  eliminateDuplicateInvoices(invs, ic, non55, s55, ipi, stock, DIFF_MIN);
+  
+  // ══════════════════════════════════════════════
+  // 🛡️ إعادة توزيع أصناف الفواتير الضعيفة (أقل من MIN) على
+  // الفواتير الباقية بدل ما ترجع للمخزون وتفضل من غير استخدام.
+  // كل مخزون ممكن يتوزع لازم يتوزع فعلياً على فواتير حقيقية.
+  // ══════════════════════════════════════════════
+  const weakIdx = [];
+  const strongIdx = [];
+  invs.forEach((inv, i) => {
+    const hasItems = Object.values(inv.items).some(q => q > 0);
+    if (!hasItems || inv.total < MIN) weakIdx.push(i);
+    else strongIdx.push(i);
+  });
+  
+  if (weakIdx.length && strongIdx.length) {
+    // اجمع كل قطع الفواتير الضعيفة كمخزون إضافي مؤقت
+    const salvage = {};
+    weakIdx.forEach(i => {
+      Object.entries(invs[i].items).forEach(([name, qty]) => {
+        if (qty > 0) salvage[name] = (salvage[name] || 0) + qty;
+      });
+      invs[i].items = {};
+      invs[i].total = 0;
+    });
+    
+    // وزّع القطع دي على الفواتير القوية: الأولوية للأبعد تحت هدفها،
+    // مع احترام قيود isRestrictedOne وحد أدنى السمن
+    const salvageNames = shuffleArray(Object.keys(salvage));
+    for (const name of salvageNames) {
+      const p = products.find(p => p.name === name);
+      if (!p) continue;
+      while (salvage[name] > 0) {
+        const eligible = strongIdx.filter(i => !invMaxedOut(invs[i], name));
+        if (!eligible.length) break;
+        eligible.sort((a, b) => (invs[a].total - (invs[a].target || invs[a].total)) - (invs[b].total - (invs[b].target || invs[b].total)));
+        const target = eligible[0];
+        invs[target].items[name] = (invs[target].items[name] || 0) + 1;
+        invs[target].total += p.piecePrice;
+        salvage[name]--;
+      }
+      // لو فضل قطع من صنف مقيد (زي زيوت وعباد وممتاز) ومفيش فاتورة قوية
+      // تقدر تاخدها (كلهم maxed out)، ترجع للمخزون العام كالمعتاد
+      if (salvage[name] > 0) {
+        stock[name] = (stock[name] || 0) + salvage[name];
+      }
+    }
+    
+    // بعد إعادة التوزيع، أعد فحص التشابه والتطابق بين الفواتير
+    // (إعادة التوزيع دي ممكن تخلق تقارب أو تطابق تام، فلازم نعيد
+    // كل حراسات الفرق/التطابق زي ما بنعملها بعد التوزيع الأساسي)
+    fixSimilarTotals(invs, ic, non55, s55, ipi, DIFF_MIN);
+    eliminateDuplicateInvoices(invs, ic, non55, s55, ipi, stock, DIFF_MIN);
+    fixSimilarTotals(invs, ic, non55, s55, ipi, DIFF_MIN);
+    
+    // فحص أخير على القيمة الصافية بعد العروض (زي الفحص اللي بعد
+    // التوزيع الأساسي بالظبط)، لأن إعادة التوزيع دي بتغيّر تركيبة
+    // الفواتير القوية وممكن العروض تخلق تقارب صافي جديد.
+    // مهم: نفحص بس بين الفواتير القوية (strongIdx) اللي هتتحفظ
+    // فعلاً، مش كل invs (اللي فيها فواتير ضعيفة فاضية دلوقتي)
+    for (let pass = 0; pass < 40; pass++) {
+      let changed = false;
+      for (let ai = 0; ai < strongIdx.length; ai++) {
+        for (let bi = ai + 1; bi < strongIdx.length; bi++) {
+          const a = strongIdx[ai], b = strongIdx[bi];
+          const netA = computeNetTotal(invs[a]);
+          const netB = computeNetTotal(invs[b]);
+          if (Math.abs(netA - netB) >= DIFF_MIN) continue;
+          const hi = netA >= netB ? a : b;
+          const lo = hi === a ? b : a;
+          const hiNamesSorted = Object.keys(invs[hi].items)
+            .filter(n => (!s55 || n !== s55.name) && invs[hi].items[n] > 0 && (!n.includes('سمن') || invs[hi].items[n] > 2))
+            .sort((x, y) => {
+              const rx = isRestrictedOne(x) ? 1 : 0, ry = isRestrictedOne(y) ? 1 : 0;
+              if (rx !== ry) return rx - ry;
+              return (invs[hi].items[y] || 0) - (invs[hi].items[x] || 0);
+            });
+          let fixed2 = false;
+          for (const name of hiNamesSorted) {
+            if (invMaxedOut(invs[lo], name)) continue;
+            const qty = invs[hi].items[name];
+            if (qty === 1 && ipi && countItems(invs[hi]) - calculateItemWeight(name, qty) < ipi) continue;
+            invs[hi].items[name]--;
+            if (invs[hi].items[name] <= 0) delete invs[hi].items[name];
+            invs[lo].items[name] = (invs[lo].items[name] || 0) + 1;
+            const newNetHi = computeNetTotal(invs[hi]);
+            const newNetLo = computeNetTotal(invs[lo]);
+            const p = products.find(p => p.name === name);
+            let safe = Math.abs(newNetHi - newNetLo) >= DIFF_MIN;
+            if (safe) {
+              for (const k of strongIdx) {
+                if (k === hi || k === lo) continue;
+                const netK = computeNetTotal(invs[k]);
+                if (Math.abs(netK - newNetHi) < DIFF_MIN || Math.abs(netK - newNetLo) < DIFF_MIN) { safe = false; break; }
+              }
+            }
+            if (safe) {
+              invs[hi].total -= p.piecePrice;
+              invs[lo].total += p.piecePrice;
+              fixed2 = true;
+              changed = true;
+              break;
+            }
+            invs[lo].items[name]--;
+            if (invs[lo].items[name] <= 0) delete invs[lo].items[name];
+            invs[hi].items[name] = (invs[hi].items[name] || 0) + 1;
+          }
+          
+          // ── Fallback: لو مفيش صنف في hi ممكن ينقل (كل الأصناف
+          // مقيدة أو تحت الحد الأدنى)، جرب تضيف صنف جديد من المخزون
+          // العام لـ lo عشان تبعدها عن hi ──
+          if (!fixed2 && stock) {
+            const stockCandidates = non55.slice().sort((x, y) => {
+              const rx = isRestrictedOne(x.name) ? 1 : 0, ry = isRestrictedOne(y.name) ? 1 : 0;
+              if (rx !== ry) return rx - ry;
+              return (stock[y.name] || 0) - (stock[x.name] || 0);
+            });
+            for (const p of stockCandidates) {
+              if (stock[p.name] <= 0) continue;
+              if (invMaxedOut(invs[lo], p.name)) continue;
+              invs[lo].items[p.name] = (invs[lo].items[p.name] || 0) + 1;
+              const newNetLo2 = computeNetTotal(invs[lo]);
+              const newNetHi2 = computeNetTotal(invs[hi]);
+              let safe2 = Math.abs(newNetHi2 - newNetLo2) >= DIFF_MIN;
+              if (safe2) {
+                for (const k of strongIdx) {
+                  if (k === hi || k === lo) continue;
+                  const netK = computeNetTotal(invs[k]);
+                  if (Math.abs(netK - newNetLo2) < DIFF_MIN) { safe2 = false; break; }
+                }
+              }
+              if (safe2) {
+                invs[lo].total += p.piecePrice;
+                stock[p.name]--;
+                fixed2 = true;
+                changed = true;
+                break;
+              }
+              invs[lo].items[p.name]--;
+              if (invs[lo].items[p.name] <= 0) delete invs[lo].items[p.name];
+            }
+          }
+          
+          // ── Fallback 2: Swap صنف من hi بصنف من lo (بيغيّر الفرق
+          // بمقدار السعرين مع بعض) ──
+          if (!fixed2) {
+            const namesHi = Object.keys(invs[hi].items).filter(n => (!s55 || n !== s55.name) && invs[hi].items[n] > 0);
+            const namesLo = Object.keys(invs[lo].items).filter(n => (!s55 || n !== s55.name) && invs[lo].items[n] > 0);
+            swapSearch2: for (const nameHi of namesHi) {
+              const pHi = products.find(p => p.name === nameHi);
+              if (!pHi) continue;
+              const qtyHi = invs[hi].items[nameHi];
+              if (qtyHi === 1 && ipi && countItems(invs[hi]) - calculateItemWeight(nameHi, qtyHi) < ipi) continue;
+              for (const nameLo of namesLo) {
+                if (nameHi === nameLo) continue;
+                const pLo = products.find(p => p.name === nameLo);
+                if (!pLo) continue;
+                if (isRestrictedOne(nameLo) && invs[hi].items[nameLo]) continue;
+                if (isRestrictedOne(nameHi) && invs[lo].items[nameHi]) continue;
+                const qtyLo = invs[lo].items[nameLo];
+                if (qtyLo === 1 && ipi && countItems(invs[lo]) - calculateItemWeight(nameLo, qtyLo) < ipi) continue;
+                
+                invs[hi].items[nameHi]--;
+                if (invs[hi].items[nameHi] <= 0) delete invs[hi].items[nameHi];
+                invs[hi].items[nameLo] = (invs[hi].items[nameLo] || 0) + 1;
+                invs[lo].items[nameLo]--;
+                if (invs[lo].items[nameLo] <= 0) delete invs[lo].items[nameLo];
+                invs[lo].items[nameHi] = (invs[lo].items[nameHi] || 0) + 1;
+                
+                const newNetHi3 = computeNetTotal(invs[hi]);
+                const newNetLo3 = computeNetTotal(invs[lo]);
+                let safe3 = Math.abs(newNetHi3 - newNetLo3) >= DIFF_MIN;
+                if (safe3) {
+                  for (const k of strongIdx) {
+                    if (k === hi || k === lo) continue;
+                    const netK = computeNetTotal(invs[k]);
+                    if (Math.abs(netK - newNetHi3) < DIFF_MIN || Math.abs(netK - newNetLo3) < DIFF_MIN) { safe3 = false; break; }
+                  }
+                }
+                if (safe3) {
+                  invs[hi].total = invs[hi].total - pHi.piecePrice + pLo.piecePrice;
+                  invs[lo].total = invs[lo].total - pLo.piecePrice + pHi.piecePrice;
+                  fixed2 = true;
+                  changed = true;
+                  break swapSearch2;
+                }
+                invs[hi].items[nameLo]--;
+                if (invs[hi].items[nameLo] <= 0) delete invs[hi].items[nameLo];
+                invs[hi].items[nameHi] = (invs[hi].items[nameHi] || 0) + 1;
+                invs[lo].items[nameHi]--;
+                if (invs[lo].items[nameHi] <= 0) delete invs[lo].items[nameHi];
+                invs[lo].items[nameLo] = (invs[lo].items[nameLo] || 0) + 1;
+              }
+            }
+          }
+          
+          if (fixed2) break;
+        }
+      }
+      if (!changed) break;
+    }
+  }
   
   const finalStock = {};
   products.forEach(p => { finalStock[p.name] = stock[p.name] / p.pack; });
@@ -1732,7 +2501,7 @@ function generateInvoices() {
         return { name, qty: qty / p.pack, qtyPieces: qty, label: `${cleanName(name)} (${qty} ق)` };
       });
     
-    // لو الفاتورة أقل من 250 → ارجع أصنافها للمخزون ولا تحفظها
+    // لو الفاتورة لسه أقل من MIN حتى بعد إعادة التوزيع → ارجع أصنافها للمخزون
     if (!items.length || inv.total < MIN) {
       Object.entries(inv.items).forEach(([name, qty]) => {
         if (qty > 0) finalStock[name] = (finalStock[name] || 0) + qty / (products.find(p => p.name === name)?.pack || 1);
@@ -1752,6 +2521,81 @@ function generateInvoices() {
       isDone: false
     });
   });
+  
+  return { logs, finalStock, ic };
+}
+
+// ══════════════════════════════════════════════════════════
+// 🎯 الدالة الرئيسية: بتجرب attemptGenerateOnce عدة مرات (لأن
+// التوزيع فيه عشوائية، فمحاولات مختلفة بتدي نتائج مختلفة) وتختار
+// أفضل نتيجة حسب: 1) الأقرب لعدد الفواتير المطلوب، 2) الأعلى
+// متوسط أصناف للفاتورة بين المحاولات اللي وصلت لنفس العدد.
+// ممكن ياخد كام ثانية زيادة، لكن بيدي نتيجة أثبت وأقرب للمطلوب.
+// ══════════════════════════════════════════════════════════
+function generateInvoices() {
+  const ipi = parseInt(document.getElementById('invoiceItemCount').value) || 5;
+  const requestedIc = parseInt(document.getElementById('invoiceCount').value);
+  if (!requestedIc) return;
+  
+  const ATTEMPTS = 25;
+  let best = null;
+  let bestScore = -Infinity;
+  
+  const scoreOf = result => {
+    const { logs, ic } = result;
+    // 1) الأقرب لعدد الفواتير المطلوب (أولوية قصوى)
+    const countScore = -Math.abs(logs.length - ic) * 1000000;
+    // 2) الأعلى متوسط أصناف (وزن السمن 2 لو 2 قطعة أو أكتر)
+    let totalItems = 0;
+    logs.forEach(l => {
+      l.items.forEach(it => {
+        const p = products.find(p => p.name === it.name);
+        const qty = Math.round(it.qty * (p?.pack || 1));
+        const isSamn = it.name.includes('سمن');
+        totalItems += (isSamn && qty >= 2) ? 2 : 1;
+      });
+    });
+    const avgItems = logs.length ? totalItems / logs.length : 0;
+    // 3) عقوبة لو فيه فاتورتين قريبتين جداً من بعض (أقل من DIFF_MIN)
+    const DIFF_MIN_CHECK = 25;
+    let closestDiff = Infinity;
+    const totals = logs.map(l => parseFloat(l.total));
+    for (let a = 0; a < totals.length; a++) {
+      for (let b = a + 1; b < totals.length; b++) {
+        const d = Math.abs(totals[a] - totals[b]);
+        if (d < closestDiff) closestDiff = d;
+      }
+    }
+    const closenessPenalty = (closestDiff < DIFF_MIN_CHECK) ? -(DIFF_MIN_CHECK - closestDiff) * 100 : 0;
+    
+    return countScore + avgItems * 10 + closenessPenalty;
+  };
+  
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    const result = attemptGenerateOnce(requestedIc, ipi);
+    const score = scoreOf(result);
+    if (score > bestScore) {
+      bestScore = score;
+      best = result;
+    }
+    // لو وصلنا لعدد الفواتير المطلوب بالظبط ومفيش فاتورتين قريبتين،
+    // ومتوسط الأصناف كويس، مفيش داعي نكمل محاولات زيادة (توفير وقت)
+    if (best && best.logs.length === requestedIc) {
+      const totals = best.logs.map(l => parseFloat(l.total));
+      let closestDiff = Infinity;
+      for (let a = 0; a < totals.length; a++) {
+        for (let b = a + 1; b < totals.length; b++) {
+          const d = Math.abs(totals[a] - totals[b]);
+          if (d < closestDiff) closestDiff = d;
+        }
+      }
+      if (closestDiff >= 25 && attempt >= 5) break; // كفاية كويس، وقف بدري
+    }
+  }
+  
+  if (!best) return;
+  
+  const { logs, finalStock } = best;
   
   db.stock = finalStock;
   db.logs.push(...logs);
@@ -1776,6 +2620,20 @@ function generateInvoices() {
   });
   const avgItemCount = logs.length ? (totalItemsAcrossInvoices / logs.length) : 0;
   
+  // ── تحقق أخير: هل فيه فاتورتين لسه قريبتين من بعض في القيمة؟ ──
+  // (نادر جداً بعد كل محاولات المعايرة، لكن ممكن يحصل في حالات
+  // نادرة زي مخزون شحيح جداً أو تنوع أصناف قليل). لو حصل، ننبّه
+  // بدل ما تكتشفها بنفسك بعد كده.
+  let closestPairDiff = Infinity;
+  for (let a = 0; a < logs.length; a++) {
+    for (let b = a + 1; b < logs.length; b++) {
+      const diff = Math.abs(parseFloat(logs[a].total) - parseFloat(logs[b].total));
+      if (diff < closestPairDiff) closestPairDiff = diff;
+    }
+  }
+  const hasCloseInvoices = logs.length >= 2 && closestPairDiff < 25;
+  const fewerThanRequested = logs.length < requestedIc;
+  
   let rowsHTML = `<div class="popup-row"><span>إجمالي الفواتير المُنشأة</span><span>${logs.length} فاتورة</span></div>`;
   if (logs.length) {
     rowsHTML += `<div class="popup-row"><span>متوسط عدد الأصناف</span><span>${avgItemCount.toFixed(1)} صنف</span></div>`;
@@ -1784,7 +2642,20 @@ function generateInvoices() {
     rowsHTML += `<div class="popup-row"><span>${count} فاتورة</span><span>${n} صنف</span></div>`;
   });
   document.getElementById('popupRows').innerHTML = rowsHTML;
-  document.getElementById('popupNote').style.display = 'none';
+  const noteEl = document.getElementById('popupNote');
+  const notes = [];
+  if (fewerThanRequested) {
+    notes.push(`⚠️ طلبت ${requestedIc} فاتورة لكن اتعمل ${logs.length} بس — المخزون (تنوع أو كمية) مش كفاية لعدد أكتر بمتوسط أصناف وفروق قيمة معقولة.`);
+  }
+  if (hasCloseInvoices) {
+    notes.push(`⚠️ فيه فاتورتين قيمتهم قريبة من بعض (فرق ${closestPairDiff.toFixed(2)} ج.م بس). ممكن تحتاج تعيد الإنشاء أو تعدّل يدوي.`);
+  }
+  if (notes.length) {
+    noteEl.style.display = 'block';
+    noteEl.innerText = notes.join(' ');
+  } else {
+    noteEl.style.display = 'none';
+  }
   document.querySelector('.popup-title').innerText = logs.length ? '✅ تم إنشاء الفواتير' : '⚠️ لم يتم إنشاء أي فاتورة';
   if (!logs.length) document.getElementById('popupRows').innerHTML = '<div class="popup-row"><span>السبب</span><span>المخزون غير كافٍ</span></div>';
   document.getElementById('popupOverlay').classList.add('show');
