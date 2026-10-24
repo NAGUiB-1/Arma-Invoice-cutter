@@ -1,30 +1,31 @@
 const products = [
+// tierBoxPrice = سعر الكرتونة بعد الشريحة (لو مفيش شريحة للصنف بيتحط سعر الكرتونة العادي)
   { name: "سمن 55 جم * 36", boxPrice: 270.48, piecePrice: 7.51, pack: 36 },
   { name: "سمن 350 جم * 12", boxPrice: 563.50, piecePrice: 46.96, pack: 12 },
-  { name: "سمن 700 جم * 6", boxPrice: 534.84, piecePrice: 89.14, pack: 6 },
-  { name: "سمن 1 ك صافي * 6", boxPrice: 725.94, piecePrice: 120.99, pack: 6 },
-  { name: "سمن 1.5 كجم * 4", boxPrice: 695.31, piecePrice: 173.83, pack: 4 },
-  { name: "سمن 2 ك صافي * 4", boxPrice: 898.17, piecePrice: 224.54, pack: 4 },
-  { name: "سمن 2.5 كجم * 4", boxPrice: 1089.76, piecePrice: 272.44, pack: 4 },
-  { name: "سمن 4.25 كجم * 1", boxPrice: 467.95, piecePrice: 467.95, pack: 1 },
-  { name: "سمن 11 كجم * 1", boxPrice: 1188.01, piecePrice: 1188.01, pack: 1 },
-  { name: "ذرة سبراي 200 ملي * 12", boxPrice: 302.82, piecePrice: 25.24, pack: 12 },
-  { name: "زيت ذرة 700 مللي * 6", boxPrice: 545.86, piecePrice: 90.98, pack: 6 },
-  { name: "ذرة 1 لتر * 6", boxPrice: 772.98, piecePrice: 128.83, pack: 6 },
-  { name: "زيت ذرة 1.6 لتر * 6", boxPrice: 1210.55, piecePrice: 201.76, pack: 6 },
-  { name: "زيت ذرة 2.2 لتر * 4", boxPrice: 1089.03, piecePrice: 272.26, pack: 4 },
-  { name: "زيت ذرة 3.5 لتر * 4", boxPrice: 1707.90, piecePrice: 426.97, pack: 4 },
-  { name: "عباد سبراي 200 ملي * 12", boxPrice: 281.51, piecePrice: 23.46, pack: 12 },
-  { name: "زيت عباد 700 مللي * 6", boxPrice: 442.72, piecePrice: 73.79, pack: 6 },
-  { name: "عباد 1 لتر * 6", boxPrice: 614.71, piecePrice: 102.45, pack: 6 },
-  { name: "زيت عباد 1.6 لتر * 6", boxPrice: 991.52, piecePrice: 165.25, pack: 6 },
-  { name: "زيت عباد 2.2 لتر * 4", boxPrice: 901.85, piecePrice: 225.46, pack: 4 },
-  { name: "زيت عباد 5 لتر * 2", boxPrice: 1006.95, piecePrice: 503.48, pack: 2 },
-  { name: "زيت عباد 10 لتر * 1", boxPrice: 1006.46, piecePrice: 1006.46, pack: 1 },
-  { name: "زيت الممتاز 700 مللي * 12", boxPrice: 732.55, piecePrice: 61.05, pack: 12 },
-  { name: "زيت الممتاز 1 لتر * 12", boxPrice: 958.69, piecePrice: 79.89, pack: 12 },
-  { name: "زيت الممتاز 2.5 لتر * 4", boxPrice: 775.18, piecePrice: 193.80, pack: 4 },
-  { name: "زيت الممتاز 4.5 لتر * 4", boxPrice: 1409.98, piecePrice: 352.49, pack: 4 }
+  { name: "سمن 700 جم * 6", boxPrice: 534.84, piecePrice: 89.14, pack: 6, tierBoxPrice: 529.38 },
+  { name: "سمن 1 ك صافي * 6", boxPrice: 725.94, piecePrice: 120.99, pack: 6, tierBoxPrice: 718.53 },
+  { name: "سمن 1.5 كجم * 4", boxPrice: 695.31, piecePrice: 173.83, pack: 4, tierBoxPrice: 688.22 },
+  { name: "سمن 2 ك صافي * 4", boxPrice: 898.17, piecePrice: 224.54, pack: 4, tierBoxPrice: 889.01 },
+  { name: "سمن 2.5 كجم * 4", boxPrice: 1089.76, piecePrice: 272.44, pack: 4, tierBoxPrice: 1078.64 },
+  { name: "سمن 4.25 كجم * 1", boxPrice: 467.95, piecePrice: 467.95, pack: 1, tierBoxPrice: 430.94 },
+  { name: "سمن 11 كجم * 1", boxPrice: 1188.01, piecePrice: 1188.01, pack: 1, tierBoxPrice: 1094.06 },
+  { name: "ذرة سبراي 200 ملي * 12", boxPrice: 361.13, piecePrice: 30.09, pack: 12, tierBoxPrice: 357.45 },
+  { name: "زيت ذرة 700 مللي * 6", boxPrice: 632.10, piecePrice: 105.35, pack: 6, tierBoxPrice: 625.65 },
+  { name: "ذرة 1 لتر * 6", boxPrice: 874.90, piecePrice: 145.82, pack: 6, tierBoxPrice: 865.97 },
+  { name: "زيت ذرة 1.6 لتر * 6", boxPrice: 1394.05, piecePrice: 232.34, pack: 6, tierBoxPrice: 1379.83 },
+  { name: "زيت ذرة 2.2 لتر * 4", boxPrice: 1260.53, piecePrice: 315.13, pack: 4, tierBoxPrice: 1247.66 },
+  { name: "زيت ذرة 3.5 لتر * 4", boxPrice: 1975.44, piecePrice: 493.86, pack: 4, tierBoxPrice: 1955.28 },
+  { name: "عباد سبراي 200 ملي * 12", boxPrice: 338.59, piecePrice: 28.22, pack: 12, tierBoxPrice: 335.14 },
+  { name: "زيت عباد 700 مللي * 6", boxPrice: 519.40, piecePrice: 86.57, pack: 6, tierBoxPrice: 514.10 },
+  { name: "عباد 1 لتر * 6", boxPrice: 705.60, piecePrice: 117.60, pack: 6, tierBoxPrice: 698.40 },
+  { name: "زيت عباد 1.6 لتر * 6", boxPrice: 1117.69, piecePrice: 186.28, pack: 6, tierBoxPrice: 1106.29 },
+  { name: "زيت عباد 2.2 لتر * 4", boxPrice: 1016.02, piecePrice: 254.00, pack: 4, tierBoxPrice: 1005.65 },
+  { name: "زيت عباد 5 لتر * 2", boxPrice: 1138.27, piecePrice: 569.14, pack: 2, tierBoxPrice: 1126.66 },
+  { name: "زيت عباد 10 لتر * 1", boxPrice: 1128.96, piecePrice: 1128.96, pack: 1, tierBoxPrice: 1117.44 },
+  { name: "زيت الممتاز 700 مللي * 12", boxPrice: 846.72, piecePrice: 70.56, pack: 12, tierBoxPrice: 838.08 },
+  { name: "زيت الممتاز 1 لتر * 12", boxPrice: 1128.96, piecePrice: 94.08, pack: 12, tierBoxPrice: 1117.44 },
+  { name: "زيت الممتاز 2.5 لتر * 4", boxPrice: 918.26, piecePrice: 229.57, pack: 4, tierBoxPrice: 908.89 },
+  { name: "زيت الممتاز 4.5 لتر * 4", boxPrice: 1409.98, piecePrice: 352.49, pack: 4 } // ⚠️ مش في القائمة الجديدة — السعر قديم
 ];
 
 let db = JSON.parse(localStorage.getItem('naguib_v16')) || { stock: {}, logs: [] };
@@ -34,6 +35,18 @@ let tempItems = [],
   selectedIds = new Set();
 
 const cleanName = n => n.split('*')[0].trim();
+
+// ترتيب الأصناف زي ترتيب القايمة (products)
+const listIndex = n => { const i = products.findIndex(p => p.name === n); return i < 0 ? 999 : i; };
+const sortByList = arr => arr.slice().sort((a, b) => listIndex(a.name) - listIndex(b.name));
+
+// هل كمية الصنف في الفاتورة مكتوبة بالكراتين (فيها "ك") ولا بالقطع بس؟
+const labelHasBox = it => ((it.label || '').match(/\(([^)]+)\)/)?.[1] || '').includes('ك');
+// نص الكمية: بالكراتين ("2 ك و 3 ق") أو بالقطع ("15 ق") حسب الوحدة
+const qtyText = (name, pcs, asBox) => {
+  const pk = products.find(p => p.name === name)?.pack || 1;
+  return asBox ? formatQty(pcs / pk, pk) : `${pcs} ق`;
+};
 
 // حالة القائمة السريعة: { productName: { qty, unit } }
 const qState = {};
@@ -164,15 +177,20 @@ function renderTemp() {
   if (!tempItems.length) { w.classList.add('hidden'); return; }
   w.classList.remove('hidden');
   let total = 0;
+  // فاتورة المبيعات: الأسعار المعروضة بعد الشرائح (نفس اللي هيتحفظ)
+  const offers = currentMode === 'out' ?
+    applyAdditionalOffers(tempItems.map(i => ({ name: i.name, qtyPieces: Math.round(i.boxQty * i.pack) }))) :
+    null;
   document.getElementById('tempBody').innerHTML = tempItems.map((item, i) => {
-    total += item.price;
+    const shownPrice = offers ? (offers.breakdown.find(b => b.name === item.name)?.lineTotal ?? item.price) : item.price;
+    total += shownPrice;
     
     if (currentMode === 'in') {
       return `<div class="ti-row">
                     <button class="x-btn-sm" onclick="tempItems.splice(${i},1);renderTemp()">✕</button>
                     <div class="ti-row-name">${cleanName(item.name)}</div>
                     <span class="ti-row-qty">${item.displayQty}</span>
-                    <span class="ti-row-price">${item.price.toFixed(2)}</span>
+                    <span class="ti-row-price">${shownPrice.toFixed(2)}</span>
                 </div>`;
     }
     
@@ -184,7 +202,7 @@ function renderTemp() {
                 <div class="ti-boxes c3">
                     <div class="mbox qty"><span class="mbox-lbl">الكمية</span><span class="mbox-val">${item.displayQty}</span></div>
                     <div class="mbox rem${isNeg?' n':''}"><span class="mbox-lbl">المتبقي</span><span class="mbox-val">${formatQty(rem,item.pack)}</span></div>
-                    <div class="mbox price"><span class="mbox-lbl">السعر</span><span class="mbox-val">${item.price.toFixed(2)}</span></div>
+                    <div class="mbox price"><span class="mbox-lbl">السعر</span><span class="mbox-val">${shownPrice.toFixed(2)}</span></div>
                 </div></div>`;
   }).join('');
   document.getElementById('totalDisplay').innerText = `إجمالي ${currentMode==='out'?'الفاتورة':'التوريد'}: ${total.toLocaleString('en-US')} ج.م`;
@@ -332,7 +350,13 @@ function filterLogs(type) {
       const num = f.length - idx; // ترقيم تنازلي (الأحدث = الأعلى رقماً)
       const isSel = selectedIds.has(l.id);
       const isSimilar = similarIds.has(l.id);
-      const rows = l.items.map(it => {
+      // فواتير المبيعات: سعر كل صنف بعد الشرائح بيظهر جنب الكمية
+      const offBreak = l.type === 'out' ?
+        applyAdditionalOffers(l.items.map(it => {
+          const pp = products.find(p => p.name === it.name);
+          return { name: it.name, qtyPieces: it.qtyPieces !== undefined ? it.qtyPieces : Math.round(it.qty * (pp?.pack || 1)) };
+        })).breakdown : [];
+      const rows = sortByList(l.items).map(it => {
         const qtyLabel = it.label.match(/\(([^)]+)\)/)?.[1] || '';
         if (l.type === 'in') {
           // نفس شكل صف التوريد في شاشة إضافة الفاتورة: اسم + كمية + سعر
@@ -345,9 +369,11 @@ function filterLogs(type) {
                         <span class="lc-row-price">${price.toFixed(2)}</span>
                     </div>`;
         }
+        const bd = offBreak.find(b => b.name === it.name);
         return `<div class="lc-row">
                     <span class="lc-row-name">${cleanName(it.name)}</span>
                     <span class="lc-row-qty">${qtyLabel}</span>
+                    ${bd ? `<span class="lc-row-price">${bd.lineTotal.toFixed(2)}</span>` : ''}
                 </div>`;
       }).join('');
       return `<div class="lc${l.isDone?' done':''}${isSel?' sel':''}${isSimilar?' similar':''}" onclick="${selectModeActive?`toggleSelect(${l.id})`:''}">
@@ -435,17 +461,22 @@ function mergeSelected() {
   const merged = {};
   let tot = 0;
   toLogs.forEach(l => {
-    tot += parseFloat(l.total);
     l.items.forEach(it => {
+      const p = products.find(p => p.name === it.name);
+      const pcs = it.qtyPieces !== undefined ? it.qtyPieces : Math.round(it.qty * (p ? p.pack : 1));
       if (merged[it.name]) {
         merged[it.name].qty += it.qty;
-        const p = products.find(p => p.name === it.name);
-        merged[it.name].label = `${cleanName(it.name)} (${Math.round(merged[it.name].qty*(p?p.pack:1))} ق)`;
-      } else merged[it.name] = { ...it };
+        merged[it.name].qtyPieces += pcs;
+        merged[it.name]._box = merged[it.name]._box || labelHasBox(it);
+        merged[it.name].label = `${cleanName(it.name)} (${qtyText(it.name, merged[it.name].qtyPieces, merged[it.name]._box)})`;
+      } else merged[it.name] = { ...it, qtyPieces: pcs, _box: labelHasBox(it) };
     });
   });
+  // الشرائح تتحسب من جديد على الفاتورة المدمجة
+  tot = applyAdditionalOffers(Object.values(merged).map(it => ({ name: it.name, qtyPieces: it.qtyPieces }))).total;
+  const mergedItems = sortByList(Object.values(merged).map(({ _box, ...rest }) => rest));
   db.logs = db.logs.filter(l => !selectedIds.has(l.id));
-  db.logs.push({ id: Date.now(), date: new Date().toLocaleString('ar-EG'), items: Object.values(merged), total: tot.toFixed(2), type: 'out', isDone: false });
+  db.logs.push({ id: Date.now(), date: new Date().toLocaleString('ar-EG'), items: mergedItems, total: tot.toFixed(2), type: 'out', isDone: false });
   localStorage.setItem('naguib_v16', JSON.stringify(db));
   selectModeActive = false;
   selectedIds.clear();
@@ -711,7 +742,7 @@ function openEdit(id) {
   editItems = l.items.map(it => {
     const p = products.find(p => p.name === it.name);
     const pcs = it.qtyPieces !== undefined ? it.qtyPieces : Math.round(it.qty * (p?.pack || 1));
-    return { name: it.name, qtyPieces: pcs };
+    return { name: it.name, qtyPieces: pcs, unit: labelHasBox(it) ? 'box' : 'piece' };
   });
   
   document.getElementById('editTitle').innerText = l.type === 'out' ? '✏️ تعديل الفاتورة' : '✏️ تعديل التوريد';
@@ -808,7 +839,7 @@ function saveEdit() {
   const l = db.logs.find(x => x.id === editLogId);
   if (!l) return;
   
-  l.items = editItems
+  l.items = sortByList(editItems
     .filter(it => it.qtyPieces > 0)
     .map(it => {
       const p = products.find(p => p.name === it.name);
@@ -816,14 +847,18 @@ function saveEdit() {
         name: it.name,
         qty: it.qtyPieces / (p?.pack || 1),
         qtyPieces: it.qtyPieces,
-        label: `${cleanName(it.name)} (${it.qtyPieces} ق)`
+        // الكمية تفضل بنفس الوحدة اللي اتعدّلت بيها (كراتين أو قطع)
+        label: `${cleanName(it.name)} (${qtyText(it.name, it.qtyPieces, (it.unit || 'piece') === 'box')})`
       };
-    });
+    }));
   
-  l.total = l.items.reduce((sum, it) => {
-    const p = products.find(p => p.name === it.name);
-    return sum + (it.qtyPieces * (p?.piecePrice || 0));
-  }, 0).toFixed(2);
+  // فواتير المبيعات: الشرائح بتتطبق من جديد على التركيبة المعدّلة. التوريد: سعر القطعة بس
+  l.total = (l.type === 'out' ?
+    applyAdditionalOffers(l.items.map(it => ({ name: it.name, qtyPieces: it.qtyPieces }))).total :
+    l.items.reduce((sum, it) => {
+      const p = products.find(p => p.name === it.name);
+      return sum + (it.qtyPieces * (p?.piecePrice || 0));
+    }, 0)).toFixed(2);
   
   recalcStock();
   localStorage.setItem('naguib_v16', JSON.stringify(db));
@@ -877,31 +912,29 @@ function calculateItemWeight(n, q) { return n.includes('سمن') ? (q >= 2 ? 2 :
 // ══════════════════════════════════════════════════════════
 function applyAdditionalOffers(items) {
   
-  // ── إعدادات العرض 1: الصفيح (سمن 11ك + 4.25ك) ──
+  // ── الشرائح (كل الأرقام والشروط هنا) ──
+  // الأسعار بعد الشريحة جاية من tierBoxPrice في قائمة الأصناف فوق.
+  
+  // شريحة الصفيح: 3 قطع أو أكتر من (سمن 11ك / 4.25ك) مجتمعين أو منفصلين
   const SHEET_11K = "سمن 11 كجم * 1";
   const SHEET_425K = "سمن 4.25 كجم * 1";
-  // السعر بعد الخصم الأساسي على الصفيح (قبل خصم الـ3 قطع الإضافي)
-  const SHEET_DISCOUNTED_PRICE = {
-    [SHEET_11K]: 1103,
-    [SHEET_425K]: 435
-  };
-  const SHEET_BONUS_MIN_PIECES = 3; // لو 3 قطع أو أكتر من الصفيح (مجتمعين أو منفصلين)
-  const SHEET_BONUS_PERCENT = 0.75; // خصم إضافي فوق السعر المخصوم فوق
+  const SHEET_MIN_PIECES = 3;
   
-  // ── إعدادات العرض 2: خصم 1% على أصناف سمن معينة ──
-  const SAMN_OFFER2_NAMES = [
+  // شريحة السمن: 3 كراتين سمن على الأقل من ضمنهم كرتونة 1.5ك
+  // (55جم و350جم مالهمش شريحة، والصفيح ليه شريحته الخاصة)
+  const SAMN_TIER_NAMES = [
     "سمن 700 جم * 6", "سمن 1 ك صافي * 6", "سمن 1.5 كجم * 4",
     "سمن 2 ك صافي * 4", "سمن 2.5 كجم * 4"
-  ]; // عدا: 55جم، 350جم، 11ك، 4.25ك (دول مستثنيين تماماً من هذا العرض)
+  ];
   const SAMN_15K = "سمن 1.5 كجم * 4";
-  const SAMN_OFFER2_MIN_BOXES = 3; // 3 كراتين سمن (من القائمة فوق) على الأقل
-  const SAMN_OFFER2_PERCENT = 1;
+  const SAMN_MIN_BOXES = 3;
   
-  // ── إعدادات العرض 3: خصم 1% على كل الزيوت ──
-  const OIL_MIN_CORN_BOXES = 1; // كرتونة ذرة (أي صنف) على الأقل
-  const OIL_MIN_SUN_BOXES = 1; // كرتونة عباد (أي صنف) على الأقل
-  const OIL_MIN_MOMTAZ_BOXES = 2; // كرتونتين ممتاز (أي وزن) على الأقل
-  const OIL_OFFER3_PERCENT = 1;
+  // شريحة الزيوت: 4 كراتين زيت على الأقل (ذرة / عباد / ممتاز)
+  // من ضمنهم كرتونة ذرة أو كرتونة عباد
+  const OIL_MIN_BOXES = 4;
+  
+  // لو صنف ملوش tierBoxPrice (زي الممتاز 4.5) نحسب خصم 3% إجمالي من القائمة
+  const FALLBACK_TIER_FACTOR = 0.97 / 0.98;
   
   // ── أدوات مساعدة ──
   const getPieces = name => items.find(it => it.name === name)?.qtyPieces || 0;
@@ -913,16 +946,19 @@ function applyAdditionalOffers(items) {
   const momtazNames = products.filter(p => p.name.includes('الممتاز')).map(p => p.name);
   
   // ── تحقق الشروط ──
-  const sheetPieces = getPieces(SHEET_11K) + getPieces(SHEET_425K);
-  const sheetBonusApplies = sheetPieces >= SHEET_BONUS_MIN_PIECES;
+  const sheetApplies = (getPieces(SHEET_11K) + getPieces(SHEET_425K)) >= SHEET_MIN_PIECES;
   
-  const samnBoxesTotal = boxesOf(SAMN_OFFER2_NAMES);
-  const has15kBox = (getPieces(SAMN_15K) / pack(SAMN_15K)) >= 1;
-  const samnOfferApplies = samnBoxesTotal >= SAMN_OFFER2_MIN_BOXES && has15kBox;
+  const samnApplies = boxesOf(SAMN_TIER_NAMES) >= SAMN_MIN_BOXES &&
+    (getPieces(SAMN_15K) / pack(SAMN_15K)) >= 1;
   
-  const oilOfferApplies = boxesOf(cornNames) >= OIL_MIN_CORN_BOXES &&
-    boxesOf(sunNames) >= OIL_MIN_SUN_BOXES &&
-    boxesOf(momtazNames) >= OIL_MIN_MOMTAZ_BOXES;
+  const cornBoxes = boxesOf(cornNames);
+  const sunBoxes = boxesOf(sunNames);
+  const oilApplies = (cornBoxes + sunBoxes + boxesOf(momtazNames)) >= OIL_MIN_BOXES &&
+    (cornBoxes >= 1 || sunBoxes >= 1);
+  
+  const tierUnitPrice = p => p.tierBoxPrice ?
+    p.tierBoxPrice / p.pack :
+    p.piecePrice * FALLBACK_TIER_FACTOR;
   
   // ── احسب السعر النهائي لكل صنف ──
   let total = 0;
@@ -934,20 +970,15 @@ function applyAdditionalOffers(items) {
     let unitPrice = p.piecePrice;
     let note = '';
     
-    if (it.name === SHEET_11K || it.name === SHEET_425K) {
-      unitPrice = SHEET_DISCOUNTED_PRICE[it.name];
-      if (sheetBonusApplies) {
-        unitPrice = unitPrice * (1 - SHEET_BONUS_PERCENT / 100);
-        note = 'عرض الصفيح + خصم 3 قطع';
-      } else {
-        note = 'عرض الصفيح';
-      }
-    } else if (SAMN_OFFER2_NAMES.includes(it.name) && samnOfferApplies) {
-      unitPrice = unitPrice * (1 - SAMN_OFFER2_PERCENT / 100);
-      note = 'سمن إضافي 1%';
-    } else if ((cornNames.includes(it.name) || sunNames.includes(it.name) || momtazNames.includes(it.name)) && oilOfferApplies) {
-      unitPrice = unitPrice * (1 - OIL_OFFER3_PERCENT / 100);
-      note = 'زيوت إضافي 1%';
+    if ((it.name === SHEET_11K || it.name === SHEET_425K) && sheetApplies) {
+      unitPrice = tierUnitPrice(p);
+      note = 'شريحة الصفيح';
+    } else if (SAMN_TIER_NAMES.includes(it.name) && samnApplies) {
+      unitPrice = tierUnitPrice(p);
+      note = 'شريحة السمن';
+    } else if ((cornNames.includes(it.name) || sunNames.includes(it.name) || momtazNames.includes(it.name)) && oilApplies) {
+      unitPrice = tierUnitPrice(p);
+      note = 'شريحة الزيوت';
     }
     
     const lineTotal = unitPrice * it.qtyPieces;
@@ -964,6 +995,7 @@ function applyAdditionalOffers(items) {
 // فواتير التوريد: الصنف | الكمية | سعر القائمة | الخصم | الصافي (من غير عروض إضافية)
 // ══════════════════════════════════════════════════════════
 async function buildInvoiceCanvas(log, targetWidth) {
+  log = { ...log, items: sortByList(log.items) }; // نفس ترتيب القايمة
   let columns, rows, detailLines = [],
     grandTotal;
   
@@ -2071,8 +2103,8 @@ function attemptGenerateOnce(requestedIc, ipi) {
   eliminateDuplicateInvoices(invs, ic, non55, s55, ipi, stock, DIFF_MIN);
   
   // ══════════════════════════════════════════════
-  // 🛡️ فحص أخير بعد العروض الإضافية: العروض (خصم الصفيح، خصم
-  // السمن 1%، خصم الزيوت 1%) بتتفعّل بشروط مختلفة لكل فاتورة،
+  // 🛡️ فحص أخير بعد العروض الإضافية: الشرائح (الصفيح، السمن،
+  // الزيوت) بتتفعّل بشروط مختلفة لكل فاتورة،
   // فالقيمة الصافية بعد الخصم ممكن تختلف عن القيمة الخام اللي
   // كنا بنحافظ على فرقها أثناء التوزيع. هنا بنعيد حساب القيمة
   // الحقيقية بعد كل الخصومات، ولو لقينا فاتورتين قريبتين، بننقل
@@ -2494,12 +2526,12 @@ function attemptGenerateOnce(requestedIc, ipi) {
   
   const logs = [];
   invs.forEach((inv, i) => {
-    const items = Object.entries(inv.items)
+    const items = sortByList(Object.entries(inv.items)
       .filter(([, q]) => q > 0)
       .map(([name, qty]) => {
         const p = products.find(p => p.name === name);
         return { name, qty: qty / p.pack, qtyPieces: qty, label: `${cleanName(name)} (${qty} ق)` };
-      });
+      }));
     
     // لو الفاتورة لسه أقل من MIN حتى بعد إعادة التوزيع → ارجع أصنافها للمخزون
     if (!items.length || inv.total < MIN) {
